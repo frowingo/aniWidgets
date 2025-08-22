@@ -4,6 +4,9 @@ import SwiftUI
 @main
 struct MiniWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        AnimatedFrameWidget()
+        FeaturedWidgetSlotA()
+        FeaturedWidgetSlotB()
+        FeaturedWidgetSlotC()
+        FeaturedWidgetSlotD()
     }
 }
