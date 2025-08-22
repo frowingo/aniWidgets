@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		0FF1C6732E4B710B00427F5B /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FF1C6722E4B710A00427F5B /* WidgetKit.framework */; };
+		0FF1C6752E4B710B00427F5B /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FF1C6742E4B710B00427F5B /* SwiftUI.framework */; };
+		0FF1C6842E4B710D00427F5B /* MiniWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0FF1C6702E4B710A00427F5B /* MiniWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		0FF1C6502E4B70B500427F5B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,17 +27,62 @@
 			remoteGlobalIDString = 0FF1C6412E4B70B400427F5B;
 			remoteInfo = aniWidgets;
 		};
+		0FF1C6822E4B710D00427F5B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0FF1C63A2E4B70B400427F5B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0FF1C66F2E4B710A00427F5B;
+			remoteInfo = MiniWidgetsExtension;
+		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		0FF1C6892E4B710D00427F5B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				0FF1C6842E4B710D00427F5B /* MiniWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		0FEA59FF2E4BDB710010F856 /* MiniWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MiniWidgetsExtension.entitlements; sourceTree = "<group>"; };
 		0FF1C6422E4B70B400427F5B /* aniWidgets.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = aniWidgets.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FF1C64F2E4B70B500427F5B /* aniWidgetsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = aniWidgetsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FF1C6592E4B70B500427F5B /* aniWidgetsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = aniWidgetsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0FF1C6702E4B710A00427F5B /* MiniWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MiniWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		0FF1C6722E4B710A00427F5B /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		0FF1C6742E4B710B00427F5B /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0FF1C6852E4B710D00427F5B /* Exceptions for "MiniWidgets" folder in "MiniWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0FF1C66F2E4B710A00427F5B /* MiniWidgetsExtension */;
+		};
+		0FF1C68B2E4B741300427F5B /* Exceptions for "aniWidgets" folder in "aniWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 0FF1C6412E4B70B400427F5B /* aniWidgets */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0FF1C6442E4B70B400427F5B /* aniWidgets */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0FF1C68B2E4B741300427F5B /* Exceptions for "aniWidgets" folder in "aniWidgets" target */,
+			);
 			path = aniWidgets;
 			sourceTree = "<group>";
 		};
@@ -43,6 +94,14 @@
 		0FF1C65C2E4B70B500427F5B /* aniWidgetsUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = aniWidgetsUITests;
+			sourceTree = "<group>";
+		};
+		0FF1C6762E4B710B00427F5B /* MiniWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0FF1C6852E4B710D00427F5B /* Exceptions for "MiniWidgets" folder in "MiniWidgetsExtension" target */,
+			);
+			path = MiniWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,15 +128,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0FF1C66D2E4B710A00427F5B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0FF1C6752E4B710B00427F5B /* SwiftUI.framework in Frameworks */,
+				0FF1C6732E4B710B00427F5B /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0FF1C6392E4B70B400427F5B = {
 			isa = PBXGroup;
 			children = (
+				0FEA59FF2E4BDB710010F856 /* MiniWidgetsExtension.entitlements */,
 				0FF1C6442E4B70B400427F5B /* aniWidgets */,
 				0FF1C6522E4B70B500427F5B /* aniWidgetsTests */,
 				0FF1C65C2E4B70B500427F5B /* aniWidgetsUITests */,
+				0FF1C6762E4B710B00427F5B /* MiniWidgets */,
+				0FF1C6712E4B710A00427F5B /* Frameworks */,
 				0FF1C6432E4B70B400427F5B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,8 +159,18 @@
 				0FF1C6422E4B70B400427F5B /* aniWidgets.app */,
 				0FF1C64F2E4B70B500427F5B /* aniWidgetsTests.xctest */,
 				0FF1C6592E4B70B500427F5B /* aniWidgetsUITests.xctest */,
+				0FF1C6702E4B710A00427F5B /* MiniWidgetsExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0FF1C6712E4B710A00427F5B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0FF1C6722E4B710A00427F5B /* WidgetKit.framework */,
+				0FF1C6742E4B710B00427F5B /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -102,10 +183,12 @@
 				0FF1C63E2E4B70B400427F5B /* Sources */,
 				0FF1C63F2E4B70B400427F5B /* Frameworks */,
 				0FF1C6402E4B70B400427F5B /* Resources */,
+				0FF1C6892E4B710D00427F5B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0FF1C6832E4B710D00427F5B /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0FF1C6442E4B70B400427F5B /* aniWidgets */,
@@ -163,6 +246,28 @@
 			productReference = 0FF1C6592E4B70B500427F5B /* aniWidgetsUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		0FF1C66F2E4B710A00427F5B /* MiniWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0FF1C6862E4B710D00427F5B /* Build configuration list for PBXNativeTarget "MiniWidgetsExtension" */;
+			buildPhases = (
+				0FF1C66C2E4B710A00427F5B /* Sources */,
+				0FF1C66D2E4B710A00427F5B /* Frameworks */,
+				0FF1C66E2E4B710A00427F5B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				0FF1C6762E4B710B00427F5B /* MiniWidgets */,
+			);
+			name = MiniWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = MiniWidgetsExtension;
+			productReference = 0FF1C6702E4B710A00427F5B /* MiniWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +289,9 @@
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 0FF1C6412E4B70B400427F5B;
 					};
+					0FF1C66F2E4B710A00427F5B = {
+						CreatedOnToolsVersion = 16.4;
+					};
 				};
 			};
 			buildConfigurationList = 0FF1C63D2E4B70B400427F5B /* Build configuration list for PBXProject "aniWidgets" */;
@@ -203,6 +311,7 @@
 				0FF1C6412E4B70B400427F5B /* aniWidgets */,
 				0FF1C64E2E4B70B500427F5B /* aniWidgetsTests */,
 				0FF1C6582E4B70B500427F5B /* aniWidgetsUITests */,
+				0FF1C66F2E4B710A00427F5B /* MiniWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +332,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		0FF1C6572E4B70B500427F5B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0FF1C66E2E4B710A00427F5B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +369,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0FF1C66C2E4B710A00427F5B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +388,11 @@
 			isa = PBXTargetDependency;
 			target = 0FF1C6412E4B70B400427F5B /* aniWidgets */;
 			targetProxy = 0FF1C65A2E4B70B500427F5B /* PBXContainerItemProxy */;
+		};
+		0FF1C6832E4B710D00427F5B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0FF1C66F2E4B710A00427F5B /* MiniWidgetsExtension */;
+			targetProxy = 0FF1C6822E4B710D00427F5B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -395,11 +523,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = aniWidgets/aniWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5H3BB7M794;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = aniWidgets/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -412,6 +543,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Iworf.aniWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -423,11 +555,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = aniWidgets/aniWidgets.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5H3BB7M794;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = aniWidgets/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -440,6 +575,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = Iworf.aniWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -518,6 +654,62 @@
 			};
 			name = Release;
 		};
+		0FF1C6872E4B710D00427F5B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MiniWidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5H3BB7M794;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MiniWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MiniWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Iworf.aniWidgets.MiniWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0FF1C6882E4B710D00427F5B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MiniWidgetsExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5H3BB7M794;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MiniWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MiniWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Iworf.aniWidgets.MiniWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -553,6 +745,15 @@
 			buildConfigurations = (
 				0FF1C66A2E4B70B500427F5B /* Debug */,
 				0FF1C66B2E4B70B500427F5B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0FF1C6862E4B710D00427F5B /* Build configuration list for PBXNativeTarget "MiniWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0FF1C6872E4B710D00427F5B /* Debug */,
+				0FF1C6882E4B710D00427F5B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

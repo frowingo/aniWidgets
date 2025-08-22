@@ -1,54 +1,25 @@
-//
-//  MiniWidgetsControl.swift
-//  MiniWidgets
-//
-//  Created by Emre Can Mece on 12.08.2025.
-//
-
-import AppIntents
 import SwiftUI
 import WidgetKit
 
-struct MiniWidgetsControl: ControlWidget {
+// MARK: - Control Center Widget (iOS 18 özelliği)
+// Bu dosya Control Center için widget kontrollerini tanımlar
+// Şimdilik boş bırakıyoruz, gelecekte genişletilebilir
+
+/*
+@available(iOS 18.0, *)
+struct AnimatedWidgetControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(
-            kind: "Iworf.aniWidgets.MiniWidgets",
-            provider: Provider()
-        ) { value in
-            ControlWidgetToggle(
-                "Start Timer",
-                isOn: value,
-                action: StartTimerIntent()
-            ) { isRunning in
-                Label(isRunning ? "On" : "Off", systemImage: "timer")
+        StaticControlConfiguration(kind: "com.yourapp.animated-widget-control") {
+            ControlWidgetButton(action: ToggleAnimationIntent()) {
+                Image(systemName: "sparkles")
+                Text("Animate")
             }
         }
-        .displayName("Timer")
-        .description("A an example control that runs a timer.")
+        .displayName("Animated Widget Control")
+        .description("Control your animated widgets from Control Center")
     }
 }
+*/
 
-extension MiniWidgetsControl {
-    struct Provider: ControlValueProvider {
-        var previewValue: Bool {
-            false
-        }
-
-        func currentValue() async throws -> Bool {
-            let isRunning = true // Check if the timer is running
-            return isRunning
-        }
-    }
-}
-
-struct StartTimerIntent: SetValueIntent {
-    static let title: LocalizedStringResource = "Start a timer"
-
-    @Parameter(title: "Timer is running")
-    var value: Bool
-
-    func perform() async throws -> some IntentResult {
-        // Start / stop the timer based on `value`.
-        return .result()
-    }
-}
+// Şimdilik bu dosyayı boş bırakıyoruz
+// iOS 18'in Control Center özellikleri için gelecekte genişletilebilir

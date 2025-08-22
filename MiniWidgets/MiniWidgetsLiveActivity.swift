@@ -1,80 +1,59 @@
-//
-//  MiniWidgetsLiveActivity.swift
-//  MiniWidgets
-//
-//  Created by Emre Can Mece on 12.08.2025.
-//
-
 import ActivityKit
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
-struct MiniWidgetsAttributes: ActivityAttributes {
+// MARK: - Live Activity (Dynamic Island ve Lock Screen)
+// Bu dosya Live Activities özelliği için
+// Şimdilik boş bırakıyoruz, gelecekte genişletilebilir
+
+/*
+// Live Activity için veri modeli
+struct AnimatedWidgetAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
-        // Dynamic stateful properties about your activity go here!
-        var emoji: String
+        var animationType: String
+        var isActive: Bool
     }
-
-    // Fixed non-changing properties about your activity go here!
-    var name: String
+    
+    var widgetName: String
 }
 
-struct MiniWidgetsLiveActivity: Widget {
+@available(iOS 16.1, *)
+struct AnimatedWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: MiniWidgetsAttributes.self) { context in
-            // Lock screen/banner UI goes here
+        ActivityConfiguration(for: AnimatedWidgetAttributes.self) { context in
+            // Lock screen/banner UI
             VStack {
-                Text("Hello \(context.state.emoji)")
+                Text("Animated Widget Active")
+                Text(context.state.animationType)
             }
-            .activityBackgroundTint(Color.cyan)
+            .activityBackgroundTint(Color.blue)
             .activitySystemActionForegroundColor(Color.black)
-
+            
         } dynamicIsland: { context in
             DynamicIsland {
-                // Expanded UI goes here.  Compose the expanded UI through
-                // various regions, like leading/trailing/center/bottom
+                // Expanded UI
                 DynamicIslandExpandedRegion(.leading) {
-                    Text("Leading")
+                    Text("Animation")
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("Trailing")
+                    Text(context.state.animationType)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text("Bottom \(context.state.emoji)")
-                    // more content
+                    Text("Widget is animating...")
                 }
             } compactLeading: {
-                Text("L")
+                Text("A")
             } compactTrailing: {
-                Text("T \(context.state.emoji)")
+                Text("W")
             } minimal: {
-                Text(context.state.emoji)
+                Text("AW")
             }
-            .widgetURL(URL(string: "http://www.apple.com"))
-            .keylineTint(Color.red)
+            .widgetURL(URL(string: "animated-widget://"))
+            .keylineTint(Color.blue)
         }
     }
 }
+*/
 
-extension MiniWidgetsAttributes {
-    fileprivate static var preview: MiniWidgetsAttributes {
-        MiniWidgetsAttributes(name: "World")
-    }
-}
-
-extension MiniWidgetsAttributes.ContentState {
-    fileprivate static var smiley: MiniWidgetsAttributes.ContentState {
-        MiniWidgetsAttributes.ContentState(emoji: "😀")
-     }
-     
-     fileprivate static var starEyes: MiniWidgetsAttributes.ContentState {
-         MiniWidgetsAttributes.ContentState(emoji: "🤩")
-     }
-}
-
-#Preview("Notification", as: .content, using: MiniWidgetsAttributes.preview) {
-   MiniWidgetsLiveActivity()
-} contentStates: {
-    MiniWidgetsAttributes.ContentState.smiley
-    MiniWidgetsAttributes.ContentState.starEyes
-}
+// Şimdilik bu dosyayı boş bırakıyoruz
+// Live Activities özelliği için gelecekte genişletilebilir
