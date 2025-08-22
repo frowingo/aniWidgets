@@ -55,5 +55,5 @@ struct AnimatedWidgetLiveActivity: Widget {
 }
 */
 
-// Şimdilik bu dosyayı boş bırakıyoruz
+// Bu dosya şimdilik kullanılmıyor - gelecekte Live Activities için rezerve
 // Live Activities özelliği için gelecekte genişletilebilir

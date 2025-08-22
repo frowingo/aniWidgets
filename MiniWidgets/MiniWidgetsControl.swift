@@ -21,5 +21,5 @@ struct AnimatedWidgetControl: ControlWidget {
 }
 */
 
-// Şimdilik bu dosyayı boş bırakıyoruz
+// Bu dosya şimdilik kullanılmıyor - gelecekte Control Center için rezerve
 // iOS 18'in Control Center özellikleri için gelecekte genişletilebilir

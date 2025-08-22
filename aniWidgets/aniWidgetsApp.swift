@@ -12,23 +12,17 @@ private enum Constants {
 
 @main
 struct aniWidgetsApp: App {
-    let defaults = UserDefaults(suiteName: Constants.appGroupID)
-    
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .onAppear {
-                    initializeCounter()
+                    // App başladığında widget'ı sıfırla
+                    let userDefaults = UserDefaults(suiteName: Constants.appGroupID)
+                    userDefaults?.set(1, forKey: "currentFrame")
+                    userDefaults?.synchronize()
+                    WidgetCenter.shared.reloadAllTimelines()
+                    appLogger.info("🚀 App başlatıldı - Widget sıfırlandı")
                 }
         }
-    }
-    
-    
-    private func initializeCounter() {
-        appLogger.info("🚀 App başlatıldı - Counter sıfırlanıyor")
-        defaults?.set(0, forKey: Constants.counterKey)
-        defaults?.synchronize()
-        WidgetCenter.shared.reloadTimelines(ofKind: Constants.widgetKind)
-        appLogger.info("✅ Counter sıfırlandı ve widget yenilendi")
     }
 }
