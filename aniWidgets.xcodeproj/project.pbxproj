@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0FDC6F7C2E5A271400291609 /* SharedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0FDC6F7B2E5A271400291609 /* SharedKit */; };
+		0FDC6F7E2E5A273D00291609 /* SharedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0FDC6F7D2E5A273D00291609 /* SharedKit */; };
 		0FF1C6732E4B710B00427F5B /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FF1C6722E4B710A00427F5B /* WidgetKit.framework */; };
 		0FF1C6752E4B710B00427F5B /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FF1C6742E4B710B00427F5B /* SwiftUI.framework */; };
 		0FF1C6842E4B710D00427F5B /* MiniWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0FF1C6702E4B710A00427F5B /* MiniWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -111,6 +113,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0FDC6F7C2E5A271400291609 /* SharedKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -134,6 +137,7 @@
 			files = (
 				0FF1C6752E4B710B00427F5B /* SwiftUI.framework in Frameworks */,
 				0FF1C6732E4B710B00427F5B /* WidgetKit.framework in Frameworks */,
+				0FDC6F7E2E5A273D00291609 /* SharedKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -195,6 +199,7 @@
 			);
 			name = aniWidgets;
 			packageProductDependencies = (
+				0FDC6F7B2E5A271400291609 /* SharedKit */,
 			);
 			productName = aniWidgets;
 			productReference = 0FF1C6422E4B70B400427F5B /* aniWidgets.app */;
@@ -263,6 +268,7 @@
 			);
 			name = MiniWidgetsExtension;
 			packageProductDependencies = (
+				0FDC6F7D2E5A273D00291609 /* SharedKit */,
 			);
 			productName = MiniWidgetsExtension;
 			productReference = 0FF1C6702E4B710A00427F5B /* MiniWidgetsExtension.appex */;
@@ -303,6 +309,9 @@
 			);
 			mainGroup = 0FF1C6392E4B70B400427F5B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				0FDC6F7A2E5A26C900291609 /* XCLocalSwiftPackageReference "SharedKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0FF1C6432E4B70B400427F5B /* Products */;
 			projectDirPath = "";
@@ -759,6 +768,26 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		0FDC6F7A2E5A26C900291609 /* XCLocalSwiftPackageReference "SharedKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = SharedKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0FDC6F7B2E5A271400291609 /* SharedKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0FDC6F7A2E5A26C900291609 /* XCLocalSwiftPackageReference "SharedKit" */;
+			productName = SharedKit;
+		};
+		0FDC6F7D2E5A273D00291609 /* SharedKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0FDC6F7A2E5A26C900291609 /* XCLocalSwiftPackageReference "SharedKit" */;
+			productName = SharedKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 0FF1C63A2E4B70B400427F5B /* Project object */;
 }

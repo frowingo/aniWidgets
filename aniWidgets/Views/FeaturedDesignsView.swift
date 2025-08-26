@@ -1,5 +1,6 @@
 import SwiftUI
 import WidgetKit
+import SharedKit
 
 struct FeaturedDesignsView: View {
     @ObservedObject private var designManager = DesignManager.shared
@@ -59,7 +60,8 @@ struct FeaturedDesignsView: View {
             ForEach(0..<4, id: \.self) { slotIndex in
                 FeaturedSlotCard(
                     slotIndex: slotIndex,
-                    design: designManager.getFeaturedDesign(for: slotIndex),
+                    design: slotIndex < designManager.featuredConfig.designs.count ? 
+                           designManager.getDesign(by: designManager.featuredConfig.designs[slotIndex]) : nil,
                     onRemove: { designId in
                         withAnimation {
                             designManager.removeFromFeatured(designId)
@@ -102,7 +104,8 @@ struct FeaturedDesignsView: View {
                 ForEach(0..<4, id: \.self) { slotIndex in
                     WidgetGalleryPreview(
                         slotIndex: slotIndex,
-                        design: designManager.getFeaturedDesign(for: slotIndex)
+                        design: slotIndex < designManager.featuredConfig.designs.count ? 
+                               designManager.getDesign(by: designManager.featuredConfig.designs[slotIndex]) : nil
                     )
                 }
             }
@@ -115,7 +118,7 @@ struct FeaturedDesignsView: View {
 
 struct FeaturedSlotCard: View {
     let slotIndex: Int
-    let design: WidgetDesign?
+    let design: AnimationDesign?
     let onRemove: (String) -> Void
     
     private var slotLabel: String {
@@ -160,7 +163,7 @@ struct FeaturedSlotCard: View {
                         .fontWeight(.medium)
                         .multilineTextAlignment(.center)
                     
-                    Text(design.description)
+                    Text("\(design.frameCount) frames")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -197,7 +200,7 @@ struct FeaturedSlotCard: View {
 
 struct WidgetGalleryPreview: View {
     let slotIndex: Int
-    let design: WidgetDesign?
+    let design: AnimationDesign?
     
     private var widgetName: String {
         if let design = design {

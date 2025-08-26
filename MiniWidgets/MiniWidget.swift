@@ -2,6 +2,7 @@ import WidgetKit
 import SwiftUI
 import AppIntents
 import os.log
+import SharedKit
 
 private let widgetLogger = Logger(subsystem: "com.aniwidgets.logging", category: "Widget")
 
@@ -48,15 +49,7 @@ struct AppGroupManager {
     }
 }
 
-struct FeaturedConfig: Codable {
-    var designs: [String]
-    var maxCount: Int
-    
-    init(designs: [String] = []) {
-        self.maxCount = 4
-        self.designs = Array(designs.prefix(maxCount))
-    }
-}
+// MARK: - Widget Time Manager
 
 struct WidgetInstanceState: Codable {
     let instanceId: String
@@ -76,54 +69,54 @@ struct WidgetInstanceState: Codable {
     }
 }
 
-class WidgetInstanceManager {
+// MARK: - Minimal Widget Instance Manager for Extension
+
+struct WidgetInstanceManager {
     private let appGroupManager = AppGroupManager()
+    
+    func loadInstanceState(_ instanceId: String) -> WidgetInstanceState? {
+        let statePath = appGroupManager.instanceStatePath(for: instanceId)
+        
+        do {
+            let data = try Data(contentsOf: statePath)
+            return try JSONDecoder().decode(WidgetInstanceState.self, from: data)
+        } catch {
+            return nil
+        }
+    }
     
     func createInstance(designId: String) -> String {
         let instanceId = UUID().uuidString
         let state = WidgetInstanceState(instanceId: instanceId, designId: designId)
         
         do {
-            try saveInstanceState(state)
+            let statePath = appGroupManager.instanceStatePath(for: instanceId)
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: statePath)
             return instanceId
         } catch {
             return instanceId
         }
-    }
-    
-    func loadInstanceState(_ instanceId: String) -> WidgetInstanceState? {
-        let statePath = appGroupManager.instanceStatePath(for: instanceId)
-        
-        do {
-            return try appGroupManager.loadData(WidgetInstanceState.self, from: statePath)
-        } catch {
-            return nil
-        }
-    }
-    
-    func saveInstanceState(_ state: WidgetInstanceState) throws {
-        let statePath = appGroupManager.instanceStatePath(for: state.instanceId)
-        try appGroupManager.saveData(state, to: statePath)
     }
     
     func startAnimation(for instanceId: String) -> Bool {
         guard var state = loadInstanceState(instanceId) else { return false }
         
-        guard !state.isAnimating else { return true }
-        
         state.isAnimating = true
         state.animationStartTime = Date()
-        state.currentFrame = 1
-        state.lastInteraction = Date()
         
         do {
-            try saveInstanceState(state)
+            let statePath = appGroupManager.instanceStatePath(for: instanceId)
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: statePath)
             return true
         } catch {
             return false
         }
     }
 }
+
+// MARK: - Widget Base Protocol
 
 // MARK: - Widget Base Protocol
 protocol FeaturedWidgetProtocol: Widget {
@@ -199,8 +192,11 @@ struct FeaturedWidgetSlotD: Widget, FeaturedWidgetProtocol {
 
 // MARK: - Timeline Provider
 struct FeaturedWidgetProvider: TimelineProvider {
+    typealias Entry = FeaturedWidgetEntry
     let slotIndex: Int
     private let appGroupManager = AppGroupManager()
+    private let appStore = AppGroupStore.shared
+    private let logger = SharedLogger.shared
     
     func placeholder(in context: Context) -> FeaturedWidgetEntry {
         FeaturedWidgetEntry(
@@ -214,10 +210,13 @@ struct FeaturedWidgetProvider: TimelineProvider {
     }
     
     func getSnapshot(in context: Context, completion: @escaping (FeaturedWidgetEntry) -> ()) {
+        // Try to load current widget data from App Group
+        let designId = loadCurrentWidgetDesignId() ?? getFeaturedDesignId(for: slotIndex)
+        
         let entry = FeaturedWidgetEntry(
             date: Date(),
             slotIndex: slotIndex,
-            designId: getFeaturedDesignId(for: slotIndex),
+            designId: designId,
             frameIndex: 1,
             instanceId: UUID().uuidString,
             isAnimating: false
@@ -226,9 +225,10 @@ struct FeaturedWidgetProvider: TimelineProvider {
     }
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<FeaturedWidgetEntry>) -> ()) {
-        widgetLogger.info("📊 Timeline requested for slot \(slotIndex)")
+        logger.info("📊 Timeline requested for slot \(slotIndex)")
         
-        let designId = getFeaturedDesignId(for: slotIndex)
+        // Try to load from App Group first, then fallback to featured design
+        let designId = loadCurrentWidgetDesignId() ?? getFeaturedDesignId(for: slotIndex)
         
         guard let designId = designId else {
             // No design for this slot
@@ -287,6 +287,19 @@ struct FeaturedWidgetProvider: TimelineProvider {
             let timeline = Timeline(entries: [entry], policy: .never)
             completion(timeline)
         }
+    }
+    
+    private func loadCurrentWidgetDesignId() -> String? {
+        do {
+            if appStore.fileExists(SharedConstants.currentWidgetDataFile) {
+                let widgetData = try appStore.readJSON(WidgetEntry.self, from: SharedConstants.currentWidgetDataFile)
+                logger.info("Loaded current widget design from App Group: \(widgetData.id)")
+                return widgetData.id
+            }
+        } catch {
+            logger.error("Failed to load current widget data from App Group: \(error.localizedDescription)")
+        }
+        return nil
     }
     
     private func getFeaturedDesignId(for slotIndex: Int) -> String? {
@@ -444,13 +457,28 @@ struct DesignFrameView: View {
     }
     
     private func loadFrameImage() -> UIImage? {
+        // First try App Group path (for downloaded designs)
         let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: frameIndex)
         
-        guard FileManager.default.fileExists(atPath: framePath.path) else {
+        if FileManager.default.fileExists(atPath: framePath.path) {
+            return UIImage(contentsOfFile: framePath.path)
+        }
+        
+        // Try bundle test design path (for TestDesigns folder)
+        if let bundleFrameImage = loadFromBundleTestDesigns() {
+            return bundleFrameImage
+        }
+        
+        return nil
+    }
+    
+    private func loadFromBundleTestDesigns() -> UIImage? {
+        // Look for TestDesigns/{designId}/frame_{frameIndex}.png
+        guard let bundlePath = Bundle.main.path(forResource: "TestDesigns/\(designId)/frame_\(String(format: "%02d", frameIndex))", ofType: "png") else {
             return nil
         }
         
-        return UIImage(contentsOfFile: framePath.path)
+        return UIImage(contentsOfFile: bundlePath)
     }
 }
 

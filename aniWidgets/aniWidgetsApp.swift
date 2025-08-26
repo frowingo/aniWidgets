@@ -1,6 +1,7 @@
 import SwiftUI
 import WidgetKit
 import os.log
+import SharedKit
 
 private let appLogger = Logger(subsystem: "com.aniwidgets.logging", category: "App")
 
@@ -20,16 +21,13 @@ struct aniWidgetsApp: App {
                     // Ana ekran göründüğünde widget'ları güncelle
                     WidgetCenter.shared.reloadAllTimelines()
                     appLogger.info("🔄 Widgets reloaded on app appear")
-                    
-                    // Eski instance'ları temizle
-                    WidgetInstanceManager.shared.cleanupOldInstances()
                 }
         }
     }
     
     private func setupAppGroup() {
         // App Group dizin yapısını oluştur
-        let _ = AppGroupManager.shared
+        let _ = AppGroupStore.shared
         appLogger.info("📁 App Group setup completed")
     }
 }

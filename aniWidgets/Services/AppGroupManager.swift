@@ -64,6 +64,30 @@ class AppGroupManager {
         }
     }
     
+    // MARK: - Generic Data Management
+    
+    func saveData<T: Codable>(_ data: T, to path: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        
+        let jsonData = try encoder.encode(data)
+        try jsonData.write(to: path)
+        
+        logger.info("💾 Saved data to \(path.lastPathComponent)")
+    }
+    
+    func loadData<T: Codable>(_ type: T.Type, from path: URL) throws -> T {
+        let jsonData = try Data(contentsOf: path)
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        
+        let data = try decoder.decode(type, from: jsonData)
+        logger.info("📂 Loaded data from \(path.lastPathComponent)")
+        
+        return data
+    }
+    
     // MARK: - Design Paths
     func designDirectory(for designId: String) -> URL {
         return designsDirectory.appendingPathComponent(designId)
@@ -79,6 +103,10 @@ class AppGroupManager {
         return url
     }
     
+    var featuredConfigPath: URL {
+        return stateDirectory.appendingPathComponent("featured_config.json")
+    }
+    
     func frameImagePath(for designId: String, frameIndex: Int) -> URL {
         let frameFileName = "frame_\(String(format: "%02d", frameIndex)).png"
         return designFramesDirectory(for: designId).appendingPathComponent(frameFileName)
@@ -89,26 +117,7 @@ class AppGroupManager {
         return instancesDirectory.appendingPathComponent("\(instanceId).json")
     }
     
-    // MARK: - Config Paths
-    var featuredConfigPath: URL {
-        return configDirectory.appendingPathComponent("featured.json")
-    }
-    
     // MARK: - File Operations
-    func saveData<T: Codable>(_ data: T, to url: URL) throws {
-        createDirectoryIfNeeded(url.deletingLastPathComponent())
-        let jsonData = try JSONEncoder().encode(data)
-        try jsonData.write(to: url)
-        logger.info("💾 Saved data to: \(url.lastPathComponent)")
-    }
-    
-    func loadData<T: Codable>(_ type: T.Type, from url: URL) throws -> T {
-        let data = try Data(contentsOf: url)
-        let decoded = try JSONDecoder().decode(type, from: data)
-        logger.info("📖 Loaded data from: \(url.lastPathComponent)")
-        return decoded
-    }
-    
     func deleteDesign(_ designId: String) throws {
         let designDir = designDirectory(for: designId)
         if fileManager.fileExists(atPath: designDir.path) {

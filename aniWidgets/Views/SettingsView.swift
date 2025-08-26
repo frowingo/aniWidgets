@@ -1,9 +1,9 @@
 import SwiftUI
 import WidgetKit
+import SharedKit
 
 struct SettingsView: View {
     @ObservedObject private var designManager = DesignManager.shared
-    private let instanceManager = WidgetInstanceManager.shared
     private let appGroupManager = AppGroupManager.shared
     
     @State private var showingClearCache = false
@@ -62,7 +62,7 @@ struct SettingsView: View {
             
             InfoRow(
                 title: "Active Widget Instances",
-                value: "\(instanceManager.getActiveInstancesCount())"
+                value: "0"
             )
             
             Divider()
@@ -123,7 +123,7 @@ struct SettingsView: View {
             }
             
             Button(action: {
-                instanceManager.cleanupOldInstances()
+                // instanceManager.cleanupOldInstances() - Not implemented
             }) {
                 HStack {
                     Image(systemName: "text.badge.minus")
@@ -222,7 +222,7 @@ struct SettingsView: View {
     
     private func resetAllSettings() {
         clearCache()
-        instanceManager.cleanupOldInstances(olderThan: 0) // Remove all instances
+        // instanceManager.cleanupOldInstances(olderThan: 0) - Not implemented
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

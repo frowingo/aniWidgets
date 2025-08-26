@@ -1,0 +1,16 @@
+{
+    "id": "manuelTest02",
+    "name": "Manuel Test Animation 02",
+    "category": "test",
+    "frameCount": 24,
+    "frameDuration": 0.1,
+    "description": "Test animation with 24 frames",
+    "isLocalTest": true,
+    "frameFormat": "png",
+    "framePrefix": "frame_",
+    "tags": [
+        "test",
+        "animation",
+        "local"
+    ]
+}

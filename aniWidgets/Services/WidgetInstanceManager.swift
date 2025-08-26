@@ -1,199 +1,201 @@
 import Foundation
-import WidgetKit
+import SwiftUI
+import SharedKit
 import os.log
 
-class WidgetInstanceManager {
+// MARK: - Widget Instance State
+
+struct WidgetInstanceState: Codable {
+    let instanceId: String
+    let designId: String
+    let currentFrameIndex: Int
+    let isAnimating: Bool
+    let lastUpdateDate: Date
+    let animationSpeed: Double
+    
+    init(instanceId: String, designId: String, currentFrameIndex: Int = 0, isAnimating: Bool = true, animationSpeed: Double = 0.1) {
+        self.instanceId = instanceId
+        self.designId = designId
+        self.currentFrameIndex = currentFrameIndex
+        self.isAnimating = isAnimating
+        self.lastUpdateDate = Date()
+        self.animationSpeed = animationSpeed
+    }
+}
+
+// MARK: - Widget Instance Manager
+
+class WidgetInstanceManager: ObservableObject {
     static let shared = WidgetInstanceManager()
     
-    private let logger = Logger(subsystem: "com.aniwidgets.logging", category: "WidgetInstance")
+    private let logger = SharedLogger.shared
     private let appGroupManager = AppGroupManager.shared
+    
+    @Published private var activeInstances: [String: WidgetInstanceState] = [:]
     
     private init() {
         logger.info("🔧 WidgetInstanceManager initialized")
+        loadActiveInstances()
     }
     
     // MARK: - Instance Management
-    func createInstance(designId: String) -> String {
-        let instanceId = UUID().uuidString
-        let state = WidgetInstanceState(instanceId: instanceId, designId: designId)
-        
-        do {
-            try saveInstanceState(state)
-            logger.info("🆕 Created new widget instance: \(instanceId) for design: \(designId)")
-            return instanceId
-        } catch {
-            logger.error("❌ Failed to create instance: \(error.localizedDescription)")
-            return instanceId // Return ID even if save failed
-        }
-    }
     
     func loadInstanceState(_ instanceId: String) -> WidgetInstanceState? {
-        let statePath = appGroupManager.instanceStatePath(for: instanceId)
-        
         do {
-            let state = try appGroupManager.loadData(WidgetInstanceState.self, from: statePath)
-            logger.info("📖 Loaded instance state: \(instanceId)")
-            return state
+            let path = appGroupManager.instanceStatePath(for: instanceId)
+            return try appGroupManager.loadData(WidgetInstanceState.self, from: path)
         } catch {
-            logger.warning("⚠️ Could not load instance state for \(instanceId): \(error.localizedDescription)")
+            logger.error("Failed to load instance state for \(instanceId): \(error.localizedDescription)")
             return nil
         }
     }
     
     func saveInstanceState(_ state: WidgetInstanceState) throws {
-        let statePath = appGroupManager.instanceStatePath(for: state.instanceId)
-        try appGroupManager.saveData(state, to: statePath)
-        logger.info("💾 Saved instance state: \(state.instanceId)")
+        let path = appGroupManager.instanceStatePath(for: state.instanceId)
+        try appGroupManager.saveData(state, to: path)
+        
+        DispatchQueue.main.async {
+            self.activeInstances[state.instanceId] = state
+        }
+        
+        logger.info("Saved instance state for \(state.instanceId)")
+    }
+    
+    func createNewInstance(designId: String) -> WidgetInstanceState {
+        let instanceId = UUID().uuidString
+        let newState = WidgetInstanceState(instanceId: instanceId, designId: designId)
+        
+        do {
+            try saveInstanceState(newState)
+            logger.info("Created new instance \(instanceId) for design \(designId)")
+        } catch {
+            logger.error("Failed to save new instance state: \(error.localizedDescription)")
+        }
+        
+        return newState
+    }
+    
+    func updateInstanceFrame(_ instanceId: String, frameIndex: Int) {
+        guard var state = activeInstances[instanceId] else {
+            logger.warning("Attempted to update non-existent instance \(instanceId)")
+            return
+        }
+        
+        let updatedState = WidgetInstanceState(
+            instanceId: state.instanceId,
+            designId: state.designId,
+            currentFrameIndex: frameIndex,
+            isAnimating: state.isAnimating,
+            animationSpeed: state.animationSpeed
+        )
+        
+        do {
+            try saveInstanceState(updatedState)
+        } catch {
+            logger.error("Failed to update instance frame: \(error.localizedDescription)")
+        }
+    }
+    
+    func toggleInstanceAnimation(_ instanceId: String) {
+        guard var state = activeInstances[instanceId] else {
+            logger.warning("Attempted to toggle animation for non-existent instance \(instanceId)")
+            return
+        }
+        
+        let updatedState = WidgetInstanceState(
+            instanceId: state.instanceId,
+            designId: state.designId,
+            currentFrameIndex: state.currentFrameIndex,
+            isAnimating: !state.isAnimating,
+            animationSpeed: state.animationSpeed
+        )
+        
+        do {
+            try saveInstanceState(updatedState)
+        } catch {
+            logger.error("Failed to toggle instance animation: \(error.localizedDescription)")
+        }
     }
     
     func deleteInstance(_ instanceId: String) {
-        let statePath = appGroupManager.instanceStatePath(for: instanceId)
+        let path = appGroupManager.instanceStatePath(for: instanceId)
         
         do {
-            if FileManager.default.fileExists(atPath: statePath.path) {
-                try FileManager.default.removeItem(at: statePath)
-                logger.info("🗑️ Deleted instance: \(instanceId)")
+            try FileManager.default.removeItem(at: path)
+            DispatchQueue.main.async {
+                self.activeInstances.removeValue(forKey: instanceId)
             }
+            logger.info("Deleted instance \(instanceId)")
         } catch {
-            logger.error("❌ Failed to delete instance \(instanceId): \(error.localizedDescription)")
+            logger.error("Failed to delete instance \(instanceId): \(error.localizedDescription)")
         }
     }
     
-    // MARK: - Animation Control
-    func startAnimation(for instanceId: String) -> Bool {
-        guard var state = loadInstanceState(instanceId) else {
-            logger.error("❌ Cannot start animation - instance not found: \(instanceId)")
-            return false
-        }
+    // MARK: - Cleanup and Maintenance
+    
+    func cleanupOldInstances() {
+        let cutoffDate = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
         
-        guard !state.isAnimating else {
-            logger.info("ℹ️ Animation already running for instance: \(instanceId)")
-            return true
-        }
-        
-        state.isAnimating = true
-        state.animationStartTime = Date()
-        state.currentFrame = 1
-        state.lastInteraction = Date()
-        
-        do {
-            try saveInstanceState(state)
-            logger.info("🎬 Started animation for instance: \(instanceId)")
-            return true
-        } catch {
-            logger.error("❌ Failed to save animation state for \(instanceId): \(error.localizedDescription)")
-            return false
+        for (instanceId, state) in activeInstances {
+            if state.lastUpdateDate < cutoffDate {
+                deleteInstance(instanceId)
+                logger.info("Cleaned up old instance \(instanceId)")
+            }
         }
     }
     
-    func stopAnimation(for instanceId: String) -> Bool {
-        guard var state = loadInstanceState(instanceId) else {
-            logger.error("❌ Cannot stop animation - instance not found: \(instanceId)")
-            return false
-        }
-        
-        state.isAnimating = false
-        state.animationStartTime = nil
-        state.currentFrame = 1
-        
-        do {
-            try saveInstanceState(state)
-            logger.info("⏹️ Stopped animation for instance: \(instanceId)")
-            return true
-        } catch {
-            logger.error("❌ Failed to save stop animation state for \(instanceId): \(error.localizedDescription)")
-            return false
-        }
+    func getAllInstances() -> [WidgetInstanceState] {
+        return Array(activeInstances.values)
     }
     
-    func updateFrame(for instanceId: String, frame: Int) -> Bool {
-        guard var state = loadInstanceState(instanceId) else {
-            logger.error("❌ Cannot update frame - instance not found: \(instanceId)")
-            return false
-        }
-        
-        state.currentFrame = frame
-        
-        do {
-            try saveInstanceState(state)
-            return true
-        } catch {
-            logger.error("❌ Failed to update frame for \(instanceId): \(error.localizedDescription)")
-            return false
-        }
+    func getInstancesForDesign(_ designId: String) -> [WidgetInstanceState] {
+        return activeInstances.values.filter { $0.designId == designId }
     }
     
-    // MARK: - Design Management
-    func updateInstanceDesign(_ instanceId: String, newDesignId: String) -> Bool {
-        guard var state = loadInstanceState(instanceId) else {
-            logger.error("❌ Cannot update design - instance not found: \(instanceId)")
-            return false
-        }
-        
-        // Stop any ongoing animation
-        state.isAnimating = false
-        state.animationStartTime = nil
-        state.currentFrame = 1
-        state.designId = newDesignId
-        
-        do {
-            try saveInstanceState(state)
-            logger.info("🎨 Updated design for instance \(instanceId) to \(newDesignId)")
-            return true
-        } catch {
-            logger.error("❌ Failed to update design for \(instanceId): \(error.localizedDescription)")
-            return false
-        }
-    }
+    // MARK: - Private Methods
     
-    // MARK: - Cleanup
-    func cleanupOldInstances(olderThan timeInterval: TimeInterval = 30 * 24 * 60 * 60) { // 30 days
-        let cutoffDate = Date().addingTimeInterval(-timeInterval)
+    private func loadActiveInstances() {
+        // Load all existing instances from App Group directory
+        let instancesDirectory = appGroupManager.appGroupDirectory.appendingPathComponent("State/instances")
+        
+        guard FileManager.default.fileExists(atPath: instancesDirectory.path) else {
+            logger.info("No instances directory found, starting fresh")
+            return
+        }
         
         do {
-            let instanceFiles = try FileManager.default.contentsOfDirectory(
-                at: appGroupManager.instancesDirectory,
-                includingPropertiesForKeys: [.contentModificationDateKey]
-            )
+            let files = try FileManager.default.contentsOfDirectory(at: instancesDirectory, includingPropertiesForKeys: nil)
             
-            for fileURL in instanceFiles {
-                do {
-                    let resourceValues = try fileURL.resourceValues(forKeys: [.contentModificationDateKey])
-                    if let modificationDate = resourceValues.contentModificationDate,
-                       modificationDate < cutoffDate {
-                        try FileManager.default.removeItem(at: fileURL)
-                        logger.info("🧹 Cleaned up old instance: \(fileURL.lastPathComponent)")
-                    }
-                } catch {
-                    logger.error("❌ Failed to check/delete instance file \(fileURL.path): \(error)")
+            for file in files where file.pathExtension == "json" {
+                if let state = try? appGroupManager.loadData(WidgetInstanceState.self, from: file) {
+                    activeInstances[state.instanceId] = state
                 }
             }
-        } catch {
-            logger.error("❌ Failed to enumerate instance files: \(error.localizedDescription)")
-        }
-    }
-    
-    // MARK: - Statistics
-    func getAllInstances() -> [WidgetInstanceState] {
-        do {
-            let instanceFiles = try FileManager.default.contentsOfDirectory(
-                at: appGroupManager.instancesDirectory,
-                includingPropertiesForKeys: nil
-            )
             
-            return instanceFiles.compactMap { fileURL in
-                let instanceId = fileURL.deletingPathExtension().lastPathComponent
-                return loadInstanceState(instanceId)
-            }
+            logger.info("Loaded \(activeInstances.count) existing instances")
         } catch {
-            logger.error("❌ Failed to load all instances: \(error.localizedDescription)")
-            return []
+            logger.error("Failed to load existing instances: \(error.localizedDescription)")
         }
     }
+}
+
+// MARK: - Extension for Widget Configuration
+
+extension WidgetInstanceManager {
+    func getNextFrameIndex(for instanceId: String, totalFrames: Int) -> Int {
+        guard let state = activeInstances[instanceId] else { return 0 }
+        
+        if !state.isAnimating {
+            return state.currentFrameIndex
+        }
+        
+        let nextFrame = (state.currentFrameIndex + 1) % totalFrames
+        updateInstanceFrame(instanceId, frameIndex: nextFrame)
+        
+        return nextFrame
+    }
     
-    func getActiveInstancesCount() -> Int {
-        let instances = getAllInstances()
-        let recentThreshold = Date().addingTimeInterval(-24 * 60 * 60) // 24 hours
-        return instances.filter { $0.lastInteraction > recentThreshold }.count
+    func resetInstanceAnimation(_ instanceId: String) {
+        updateInstanceFrame(instanceId, frameIndex: 0)
     }
 }

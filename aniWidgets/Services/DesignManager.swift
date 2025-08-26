@@ -1,249 +1,260 @@
 import Foundation
 import SwiftUI
 import WidgetKit
+import SharedKit
 import os.log
 
-@MainActor
+/// Manages animation designs for the app and widget
 class DesignManager: ObservableObject {
     static let shared = DesignManager()
     
-    private let logger = Logger(subsystem: "com.aniwidgets.logging", category: "DesignManager")
     private let appGroupManager = AppGroupManager.shared
-    private let downloader = DesignDownloader()
+    private let logger = Logger(subsystem: "com.aniwidgets.logging", category: "DesignManager")
     
-    @Published var availableDesigns: [WidgetDesign] = []
-    @Published var featuredConfig = FeaturedConfig()
+    @Published var availableDesigns: [AnimationDesign] = []
+    @Published var featuredConfig: FeaturedConfig = FeaturedConfig()
+    @Published var featuredDesigns: [AnimationDesign] = []
     @Published var isLoading = false
-    @Published var downloadProgress: [String: Double] = [:]
-    @Published var hasPendingChanges = false
-    @Published var isSyncing = false
     
     private init() {
-        logger.info("🎨 DesignManager initialized")
+        loadLocalDesigns()
         loadFeaturedConfig()
-        loadAvailableDesigns()
     }
     
-    // MARK: - Available Designs (Mock API data for now)
-    func loadAvailableDesigns() {
-        availableDesigns = [
-            // Test Category - Only test01 has real assets
-            WidgetDesign(
-                id: "test01",
-                name: "test01",
-                description: "frowing'in özel animasyonlu tasarımı",
-                category: "test",
-                thumbnailURL: "https://example.com/thumbnails/test01.png",
-                framesBaseURL: "https://example.com/frames/test01"
-            ),
-            WidgetDesign(
-                id: "test02",
-                name: "test02",
-                description: "Coming soon - Enhanced pulse variant",
-                category: "test",
-                thumbnailURL: "https://example.com/thumbnails/test02.png",
-                framesBaseURL: "https://example.com/frames/test02"
-            ),
-            WidgetDesign(
-                id: "test03",
-                name: "test03",
-                description: "Coming soon - Smooth wave animation",
-                category: "test",
-                thumbnailURL: "https://example.com/thumbnails/test03.png",
-                framesBaseURL: "https://example.com/frames/test03"
-            ),
-            WidgetDesign(
-                id: "test04",
-                name: "test04",
-                description: "Coming soon - Dynamic gradient effect",
-                category: "test",
-                thumbnailURL: "https://example.com/thumbnails/test04.png",
-                framesBaseURL: "https://example.com/frames/test04"
-            ),
+    // MARK: - Design Loading
+    
+    func loadLocalDesigns() {
+        isLoading = true
+        
+        var designs: [AnimationDesign] = []
+        
+        // Load TestDesigns from bundle
+        if let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil),
+           let testDesigns = loadTestDesigns(from: testDesignsPath) {
+            designs.append(contentsOf: testDesigns)
+        }
+        
+        // Load designs from App Group directory
+        let appGroupDesigns = loadAppGroupDesigns()
+        designs.append(contentsOf: appGroupDesigns)
+        
+        DispatchQueue.main.async {
+            self.availableDesigns = designs
+            self.isLoading = false
+            self.updateFeaturedDesigns()
+        }
+        
+        logger.info("Loaded \(designs.count) designs")
+    }
+    
+    private func loadTestDesigns(from path: String) -> [AnimationDesign]? {
+        let fileManager = FileManager.default
+        var designs: [AnimationDesign] = []
+        
+        do {
+            let contents = try fileManager.contentsOfDirectory(atPath: path)
             
-            // Nature Category
-            WidgetDesign(
-                id: "nature01",
-                name: "nature01",
-                description: "Coming soon - Forest breeze animation",
-                category: "nature",
-                thumbnailURL: "https://example.com/thumbnails/nature01.png",
-                framesBaseURL: "https://example.com/frames/nature01"
-            ),
-            WidgetDesign(
-                id: "nature02",
-                name: "nature02",
-                description: "Coming soon - Ocean wave motion",
-                category: "nature",
-                thumbnailURL: "https://example.com/thumbnails/nature02.png",
-                framesBaseURL: "https://example.com/frames/nature02"
-            ),
-            WidgetDesign(
-                id: "nature03",
-                name: "nature03",
-                description: "Coming soon - Mountain sunrise glow",
-                category: "nature",
-                thumbnailURL: "https://example.com/thumbnails/nature03.png",
-                framesBaseURL: "https://example.com/frames/nature03"
-            ),
+            for item in contents {
+                let itemPath = "\(path)/\(item)"
+                var isDirectory: ObjCBool = false
+                
+                if fileManager.fileExists(atPath: itemPath, isDirectory: &isDirectory) && isDirectory.boolValue {
+                    if let design = loadDesignFromDirectory(itemPath, designId: item) {
+                        designs.append(design)
+                    }
+                }
+            }
+        } catch {
+            logger.error("Failed to load test designs: \(error.localizedDescription)")
+            return nil
+        }
+        
+        return designs
+    }
+    
+    private func loadAppGroupDesigns() -> [AnimationDesign] {
+        var designs: [AnimationDesign] = []
+        
+        let designsDirectory = appGroupManager.designsDirectory
+        
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(at: designsDirectory, includingPropertiesForKeys: nil)
             
-            // Abstract Category
-            WidgetDesign(
-                id: "abstract01",
-                name: "abstract01",
-                description: "Coming soon - Geometric patterns",
-                category: "abstract",
-                thumbnailURL: "https://example.com/thumbnails/abstract01.png",
-                framesBaseURL: "https://example.com/frames/abstract01"
-            ),
-            WidgetDesign(
-                id: "abstract02",
-                name: "abstract02",
-                description: "Coming soon - Fluid shapes motion",
-                category: "abstract",
-                thumbnailURL: "https://example.com/thumbnails/abstract02.png",
-                framesBaseURL: "https://example.com/frames/abstract02"
-            ),
-            WidgetDesign(
-                id: "abstract03",
-                name: "abstract03",
-                description: "Coming soon - Particle system animation",
-                category: "abstract",
-                thumbnailURL: "https://example.com/thumbnails/abstract03.png",
-                framesBaseURL: "https://example.com/frames/abstract03"
+            for designFolder in contents {
+                if let design = loadDesignFromAppGroup(designFolder) {
+                    designs.append(design)
+                }
+            }
+        } catch {
+            logger.info("No app group designs found or error loading: \(error.localizedDescription)")
+        }
+        
+        return designs
+    }
+    
+    private func loadDesignFromDirectory(_ path: String, designId: String) -> AnimationDesign? {
+        let manifestPath = "\(path)/manifest.json"
+        
+        guard FileManager.default.fileExists(atPath: manifestPath) else {
+            // Create basic design from frame count
+            let frameCount = countFrames(in: path)
+            guard frameCount > 0 else { return nil }
+            
+            return AnimationDesign(
+                id: designId,
+                name: designId.capitalized,
+                frameCount: frameCount
             )
-        ]
-        Task {
-            logger.info("🎨 Loaded \(self.availableDesigns.count) available designs")
+        }
+        
+        // Load from manifest
+        do {
+            let data = try Data(contentsOf: URL(fileURLWithPath: manifestPath))
+            let manifest = try JSONDecoder().decode(DesignManifest.self, from: data)
+            
+            return AnimationDesign(
+                id: designId,
+                name: manifest.name ?? designId.capitalized,
+                frameCount: manifest.frameCount,
+                frameRate: manifest.frameRate
+            )
+        } catch {
+            logger.error("Failed to load manifest for \(designId): \(error.localizedDescription)")
+            return nil
         }
     }
     
-    // MARK: - Featured Configuration
+    private func loadDesignFromAppGroup(_ folderURL: URL) -> AnimationDesign? {
+        let designId = folderURL.lastPathComponent
+        let manifestURL = folderURL.appendingPathComponent("manifest.json")
+        
+        guard FileManager.default.fileExists(atPath: manifestURL.path) else {
+            return nil
+        }
+        
+        do {
+            let design = try appGroupManager.loadData(AnimationDesign.self, from: manifestURL)
+            return design
+        } catch {
+            logger.error("Failed to load app group design \(designId): \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    private func countFrames(in path: String) -> Int {
+        do {
+            let contents = try FileManager.default.contentsOfDirectory(atPath: path)
+            return contents.filter { $0.hasPrefix("frame_") && $0.hasSuffix(".png") }.count
+        } catch {
+            return 0
+        }
+    }
+    
+    // MARK: - Featured Designs Management
+    
     func loadFeaturedConfig() {
         do {
-            featuredConfig = try appGroupManager.loadData(FeaturedConfig.self, from: appGroupManager.featuredConfigPath)
-            logger.info("📋 Featured config loaded: \(self.featuredConfig.designs)")
+            self.featuredConfig = try appGroupManager.loadData(FeaturedConfig.self, from: appGroupManager.featuredConfigPath)
+            logger.info("Loaded featured config with \(self.featuredConfig.designs.count) designs")
+            
+            // Update featuredDesigns array
+            updateFeaturedDesigns()
         } catch {
-            logger.info("📋 No featured config found, creating default")
-            featuredConfig = FeaturedConfig()
+            logger.info("No featured config found, using default")
+            self.featuredConfig = FeaturedConfig()
+            updateFeaturedDesigns()
+        }
+    }
+    
+    private func updateFeaturedDesigns() {
+        self.featuredDesigns = availableDesigns.filter { design in
+            featuredConfig.designs.contains(design.id)
         }
     }
     
     func saveFeaturedConfig() {
         do {
-            try appGroupManager.saveData(featuredConfig, to: appGroupManager.featuredConfigPath)
-            logger.info("💾 Featured config saved")
+            try appGroupManager.saveData(self.featuredConfig, to: appGroupManager.featuredConfigPath)
+            logger.info("Saved featured config")
+            
+            // Reload widgets
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
-            logger.error("❌ Failed to save featured config: \(error.localizedDescription)")
+            logger.error("Failed to save featured config: \(error.localizedDescription)")
         }
     }
     
-    // MARK: - Featured Management
-    func addToFeatured(_ design: WidgetDesign) async {
-        guard featuredConfig.addDesign(design.id) else {
-            logger.warning("⚠️ Could not add design to featured (already exists or full)")
-            return
-        }
+    func addToFeatured(_ designId: String) {
+        guard !self.featuredConfig.designs.contains(designId) else { return }
+        guard self.featuredConfig.designs.count < self.featuredConfig.maxCount else { return }
         
-        hasPendingChanges = true
+        self.featuredConfig.designs.append(designId)
         saveFeaturedConfig()
     }
     
     func removeFromFeatured(_ designId: String) {
-        featuredConfig.removeDesign(designId)
-        hasPendingChanges = true
+        self.featuredConfig.designs.removeAll { $0 == designId }
         saveFeaturedConfig()
     }
     
-    func removeFromFeatured(at index: Int) {
-        guard index < featuredConfig.designs.count else { return }
-        let designId = featuredConfig.designs[index]
-        removeFromFeatured(designId)
-    }
-    
-    func reorderFeatured(_ newOrder: [String]) {
-        featuredConfig.reorderDesigns(newOrder)
-        hasPendingChanges = true
+    func moveFeaturedDesign(from source: IndexSet, to destination: Int) {
+        self.featuredConfig.designs.move(fromOffsets: source, toOffset: destination)
         saveFeaturedConfig()
     }
     
-    // MARK: - Sync Operations
-    func syncFeaturedDesigns() async {
-        guard hasPendingChanges else { return }
-        
-        isSyncing = true
-        logger.info("🔄 Starting sync for featured designs")
-        
-        // Get current featured design IDs
-        let currentFeaturedIds = Set(featuredConfig.designs)
-        
-        // Download new designs
-        for designId in currentFeaturedIds {
-            if let design = availableDesigns.first(where: { $0.id == designId }) {
-                await downloadDesign(design)
-            }
-        }
-        
-        // Cleanup unused designs
-        await cleanupUnusedDesigns()
-        
-        hasPendingChanges = false
-        isSyncing = false
-        logger.info("✅ Sync completed for featured designs")
+    // MARK: - Design Operations
+    
+    func getDesign(by id: String) -> AnimationDesign? {
+        return availableDesigns.first { $0.id == id }
     }
     
-    // MARK: - Download Management
-    func downloadDesign(_ design: WidgetDesign) async {
-        logger.info("⬇️ Starting download for design: \(design.name)")
-        isLoading = true
-        downloadProgress[design.id] = 0.0
-        
-        do {
-            try await downloader.downloadDesign(design) { progress in
-                Task { @MainActor in
-                    self.downloadProgress[design.id] = progress
-                }
-            }
-            
-            downloadProgress.removeValue(forKey: design.id)
-            logger.info("✅ Download completed for design: \(design.name)")
-            
-        } catch {
-            downloadProgress.removeValue(forKey: design.id)
-            logger.error("❌ Download failed for design: \(design.name) - \(error.localizedDescription)")
+    func getFrameImage(for designId: String, frameIndex: Int) -> UIImage? {
+        // Try to load from bundle first (TestDesigns)
+        if let bundleImage = loadFrameFromBundle(designId: designId, frameIndex: frameIndex) {
+            return bundleImage
         }
         
-        isLoading = false
+        // Try to load from App Group
+        return loadFrameFromAppGroup(designId: designId, frameIndex: frameIndex)
     }
     
-    private func cleanupUnusedDesigns() async {
-        let featuredIds = Set(featuredConfig.designs)
-        do {
-            try appGroupManager.cleanupUnusedDesigns(keepingIds: featuredIds)
-        } catch {
-            logger.error("❌ Cleanup failed: \(error.localizedDescription)")
+    private func loadFrameFromBundle(designId: String, frameIndex: Int) -> UIImage? {
+        let frameName = String(format: "frame_%02d", frameIndex + 1)
+        return UIImage(named: "\(designId)/\(frameName)")
+    }
+    
+    private func loadFrameFromAppGroup(designId: String, frameIndex: Int) -> UIImage? {
+        let frameName = String(format: "frame_%02d.png", frameIndex + 1)
+        let frameURL = appGroupManager.designFramesDirectory(for: designId).appendingPathComponent(frameName)
+        
+        guard FileManager.default.fileExists(atPath: frameURL.path) else {
+            return nil
         }
+        
+        return UIImage(contentsOfFile: frameURL.path)
     }
     
-    // MARK: - Helper Methods
-    func isDesignFeatured(_ designId: String) -> Bool {
-        return featuredConfig.designs.contains(designId)
+    func refreshDesigns() {
+        loadLocalDesigns()
     }
     
     func isDesignDownloaded(_ designId: String) -> Bool {
-        return appGroupManager.designExists(designId)
+        // Check if design exists in App Group directory
+        let designDir = appGroupManager.designDirectory(for: designId)
+        return FileManager.default.fileExists(atPath: designDir.path)
     }
+}
+
+// MARK: - Supporting Models
+
+private struct DesignManifest: Codable {
+    let name: String?
+    let frameCount: Int
+    let frameRate: Double
     
-    var featuredDesigns: [WidgetDesign] {
-        return featuredConfig.designs.compactMap { designId in
-            availableDesigns.first { $0.id == designId }
-        }
-    }
-    
-    func getFeaturedDesign(for slotIndex: Int) -> WidgetDesign? {
-        guard slotIndex < featuredConfig.designs.count else { return nil }
-        let designId = featuredConfig.designs[slotIndex]
-        return availableDesigns.first { $0.id == designId }
+    enum CodingKeys: String, CodingKey {
+        case name
+        case frameCount = "frame_count"
+        case frameRate = "frame_rate"
     }
 }
