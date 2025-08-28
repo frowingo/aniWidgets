@@ -33,7 +33,7 @@ struct FeaturedDesignsView: View {
         VStack(spacing: 8) {
             HStack {
                 Image(systemName: "star.fill")
-                    .foregroundColor(.yellow)
+                    .foregroundColor(.teal)
                 Text("\(designManager.featuredConfig.designs.count)/4 Featured Designs")
                     .font(.headline)
                 Spacer()

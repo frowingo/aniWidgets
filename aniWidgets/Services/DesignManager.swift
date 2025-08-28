@@ -24,27 +24,31 @@ class DesignManager: ObservableObject {
     // MARK: - Design Loading
     
     func loadLocalDesigns() {
+        // frowi - designlar'ı yüklemenin başladığını belirtti
         isLoading = true
         
+        // frowi - tüm desingleri bu arrayde tutucak
         var designs: [AnimationDesign] = []
         
         // Load TestDesigns from bundle
+        // frowi - statik test desingleri bundle'dan okuyup kaydediyor
         if let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil),
            let testDesigns = loadTestDesigns(from: testDesignsPath) {
             designs.append(contentsOf: testDesigns)
         }
         
         // Load designs from App Group directory
+        // frowi - appGroup'a kaydedilmiş olan designleri yüklüyor
         let appGroupDesigns = loadAppGroupDesigns()
         designs.append(contentsOf: appGroupDesigns)
         
         DispatchQueue.main.async {
             self.availableDesigns = designs
-            self.isLoading = false
+            self.isLoading = false // frowi - design yükleme bitti
             self.updateFeaturedDesigns()
         }
         
-        logger.info("Loaded \(designs.count) designs")
+        logger.info("Loaded \(designs.count) local designs")
     }
     
     private func loadTestDesigns(from path: String) -> [AnimationDesign]? {
@@ -95,6 +99,7 @@ class DesignManager: ObservableObject {
     private func loadDesignFromDirectory(_ path: String, designId: String) -> AnimationDesign? {
         let manifestPath = "\(path)/manifest.json"
         
+        // frowi - manifest dosyasını bulamazsa dosya içerisindeki png sayısından design animasyon bilgilerini dönüyor
         guard FileManager.default.fileExists(atPath: manifestPath) else {
             // Create basic design from frame count
             let frameCount = countFrames(in: path)
