@@ -94,7 +94,7 @@ class AppGroupManager {
     }
     
     func designManifestPath(for designId: String) -> URL {
-        return designDirectory(for: designId).appendingPathComponent("manifest.json")
+        return designDirectory(for: designId).appendingPathComponent("\(designId)_manifest.json")
     }
     
     func designFramesDirectory(for designId: String) -> URL {
@@ -108,7 +108,7 @@ class AppGroupManager {
     }
     
     func frameImagePath(for designId: String, frameIndex: Int) -> URL {
-        let frameFileName = "frame_\(String(format: "%02d", frameIndex)).png"
+        let frameFileName = "\(designId)_frame_\(String(format: "%02d", frameIndex)).png"
         return designFramesDirectory(for: designId).appendingPathComponent(frameFileName)
     }
     

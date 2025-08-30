@@ -5,13 +5,12 @@ struct AllDesignsView: View {
     @ObservedObject private var designManager = DesignManager.shared
     @State private var searchText = ""
     
-    var filteredDesigns: [WidgetDesign] {
+    var filteredDesigns: [AnimationDesign] {
         if searchText.isEmpty {
             return designManager.availableDesigns
         } else {
             return designManager.availableDesigns.filter { design in
-                design.name.localizedCaseInsensitiveContains(searchText) ||
-                design.description.localizedCaseInsensitiveContains(searchText)
+                design.name.localizedCaseInsensitiveContains(searchText)
             }
         }
     }
@@ -24,8 +23,8 @@ struct AllDesignsView: View {
             // Designs Grid
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20), count: 2), spacing: 20) {
-                    ForEach(filteredDesigns) { design in
-                        DesignCard(design: design)
+                    ForEach(filteredDesigns, id: \.id) { design in
+                        PrevislyDesignCard(design: design)
                     }
                 }
                 .padding(20)
@@ -58,20 +57,16 @@ struct AllDesignsView: View {
     }
 }
 
-struct DesignCard: View {
-    let design: WidgetDesign
+struct PrevislyDesignCard: View {
+    let design: AnimationDesign
     @ObservedObject private var designManager = DesignManager.shared
     
     private var isInFeatured: Bool {
-        designManager.isDesignFeatured(design.id)
+        designManager.featuredConfig.designs.contains(design.id)
     }
     
     private var isDownloaded: Bool {
         designManager.isDesignDownloaded(design.id)
-    }
-    
-    private var downloadProgress: Double {
-        designManager.downloadProgress[design.id] ?? 0.0
     }
     
     var body: some View {
@@ -81,49 +76,25 @@ struct DesignCard: View {
                 // Use design's preview image
                 if design.id == "test01" {
                     // Bundle image için doğrudan Image kullan
-                    Image("frame_01")
+                    Image("test01_frame_01")
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 140, height: 140)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 } else {
-                    // Diğer tasarımlar için AsyncImage
-                    AsyncImage(url: design.previewImageURL) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .overlay(
-                                VStack {
-                                    Image(systemName: "photo")
-                                        .font(.title2)
-                                        .foregroundColor(.gray)
-                                    Text(design.name)
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                            )
-                    }
-                    .frame(width: 140, height: 140)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-                
-                // Download Progress Overlay
-                if downloadProgress > 0 && downloadProgress < 1 {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.black.opacity(0.6))
+                    // Diğer tasarımlar için placeholder
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
                         .frame(width: 140, height: 140)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
                         .overlay(
-                            VStack(spacing: 8) {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .tint(.white)
-                                
-                                Text("\(Int(downloadProgress * 100))%")
+                            VStack {
+                                Image(systemName: "photo")
+                                    .font(.title2)
+                                    .foregroundColor(.gray)
+                                Text(design.name)
                                     .font(.caption)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.gray)
                             }
                         )
                 }
@@ -155,7 +126,7 @@ struct DesignCard: View {
                     .fontWeight(.semibold)
                     .multilineTextAlignment(.center)
                 
-                Text(design.description)
+                Text("\(design.frameCount) frames")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -177,21 +148,7 @@ struct DesignCard: View {
     
     @ViewBuilder
     private var actionButton: some View {
-        if downloadProgress > 0 && downloadProgress < 1 {
-            // Downloading
-            Button(action: {}) {
-                Text("Downloading...")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.gray)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemGray5))
-                    .cornerRadius(8)
-            }
-            .disabled(true)
-            
-        } else if isInFeatured {
+        if isInFeatured {
             // Remove from Featured
             Button(action: {
                 withAnimation {
@@ -228,8 +185,8 @@ struct DesignCard: View {
         } else {
             // Add to Featured
             Button(action: {
-                Task<Void, Never>.detached {
-                    await designManager.addToFeatured(design)
+                withAnimation {
+                    designManager.addToFeatured(design.id)
                 }
             }) {
                 HStack(spacing: 4) {
@@ -247,24 +204,6 @@ struct DesignCard: View {
         }
     }
 }
-
-//struct DesignSelectionView: View {
-//    @Environment(\.presentationMode) var presentationMode
-//    
-//    var body: some View {
-//        AllDesignsView()
-//            .navigationTitle("Select Designs")
-//            .navigationBarTitleDisplayMode(.inline)
-//            .navigationBarBackButtonHidden(true)
-//            .toolbar {
-//                ToolbarItem(placement: .navigationBarLeading) {
-//                    Button("Done") {
-//                        presentationMode.wrappedValue.dismiss()
-//                    }
-//                }
-//            }
-//    }
-//}
 
 #Preview {
     NavigationView {

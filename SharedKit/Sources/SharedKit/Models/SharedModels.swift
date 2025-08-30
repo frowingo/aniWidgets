@@ -72,18 +72,59 @@ public struct AppSettings: Codable {
 public struct AnimationDesign: Codable, Hashable {
     public let id: String
     public let name: String
+    public let podiumName: String
     public let frameCount: Int
     public let frameRate: Double
     public let createdAt: Date
     
-    public init(id: String, name: String, frameCount: Int, frameRate: Double = 10.0) {
+    public init(id: String, name: String, podiumName: String , frameCount: Int, frameRate: Double = 10.0) {
         self.id = id
         self.name = name
+        self.podiumName = podiumName
         self.frameCount = frameCount
         self.frameRate = frameRate
         self.createdAt = Date()
     }
 }
+
+// MARK: - Widget Design
+public struct WidgetDesign: Codable, Identifiable, Hashable {
+   public let id: String
+   public let name: String
+   public let description: String
+   public let category: String
+   public let frameCount: Int
+   public let animationDuration: Double
+   public let frameInterval: Double
+   public let thumbnailURL: String
+   public let framesBaseURL: String
+   public let isDownloaded: Bool
+    
+    // Computed property for preview image URL
+   public var previewImageURL: URL? {
+        // test01 için bundle'dan gerçek frame'i kullan
+        if id == "test01" {
+            if let bundlePath = Bundle.main.path(forResource: "frame_01", ofType: "png") {
+                return URL(fileURLWithPath: bundlePath)
+            }
+        }
+        return URL(string: thumbnailURL)
+    }
+    
+   public init(id: String, name: String, description: String, category: String = "general", frameCount: Int = 24, animationDuration: Double = 12.0, frameInterval: Double = 0.5, thumbnailURL: String, framesBaseURL: String, isDownloaded: Bool = false) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.category = category
+        self.frameCount = frameCount
+        self.animationDuration = animationDuration
+        self.frameInterval = frameInterval
+        self.thumbnailURL = thumbnailURL
+        self.framesBaseURL = framesBaseURL
+        self.isDownloaded = isDownloaded
+    }
+}
+
 
 // MARK: - Featured Configuration
 

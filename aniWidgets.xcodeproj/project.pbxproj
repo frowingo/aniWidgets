@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0F7108032E636D63005D2A7E /* TestDesigns in Copy Bundle Resources */ = {isa = PBXBuildFile; fileRef = 0F7108022E636D63005D2A7E /* TestDesigns */; };
 		0FDC6F7C2E5A271400291609 /* SharedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0FDC6F7B2E5A271400291609 /* SharedKit */; };
 		0FDC6F7E2E5A273D00291609 /* SharedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0FDC6F7D2E5A273D00291609 /* SharedKit */; };
 		0FF1C6732E4B710B00427F5B /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0FF1C6722E4B710A00427F5B /* WidgetKit.framework */; };
@@ -39,6 +40,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		0F7107CC2E636CAC005D2A7E /* Copy Bundle Resources */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+				0F7108032E636D63005D2A7E /* TestDesigns in Copy Bundle Resources */,
+			);
+			name = "Copy Bundle Resources";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0FF1C6892E4B710D00427F5B /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -53,6 +65,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0F7108022E636D63005D2A7E /* TestDesigns */ = {isa = PBXFileReference; lastKnownFileType = folder; name = TestDesigns; path = aniWidgets/TestDesigns; sourceTree = "<group>"; };
 		0FEA59FF2E4BDB710010F856 /* MiniWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MiniWidgetsExtension.entitlements; sourceTree = "<group>"; };
 		0FF1C6422E4B70B400427F5B /* aniWidgets.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = aniWidgets.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FF1C64F2E4B70B500427F5B /* aniWidgetsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = aniWidgetsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -70,21 +83,11 @@
 			);
 			target = 0FF1C66F2E4B710A00427F5B /* MiniWidgetsExtension */;
 		};
-		0FF1C68B2E4B741300427F5B /* Exceptions for "aniWidgets" folder in "aniWidgets" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 0FF1C6412E4B70B400427F5B /* aniWidgets */;
-		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0FF1C6442E4B70B400427F5B /* aniWidgets */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				0FF1C68B2E4B741300427F5B /* Exceptions for "aniWidgets" folder in "aniWidgets" target */,
-			);
 			path = aniWidgets;
 			sourceTree = "<group>";
 		};
@@ -147,6 +150,7 @@
 		0FF1C6392E4B70B400427F5B = {
 			isa = PBXGroup;
 			children = (
+				0F7108022E636D63005D2A7E /* TestDesigns */,
 				0FEA59FF2E4BDB710010F856 /* MiniWidgetsExtension.entitlements */,
 				0FF1C6442E4B70B400427F5B /* aniWidgets */,
 				0FF1C6522E4B70B500427F5B /* aniWidgetsTests */,
@@ -186,8 +190,8 @@
 			buildPhases = (
 				0FF1C63E2E4B70B400427F5B /* Sources */,
 				0FF1C63F2E4B70B400427F5B /* Frameworks */,
-				0FF1C6402E4B70B400427F5B /* Resources */,
 				0FF1C6892E4B710D00427F5B /* Embed Foundation Extensions */,
+				0F7107CC2E636CAC005D2A7E /* Copy Bundle Resources */,
 			);
 			buildRules = (
 			);
@@ -326,13 +330,6 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		0FF1C6402E4B70B400427F5B /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		0FF1C64D2E4B70B500427F5B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;

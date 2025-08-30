@@ -34,7 +34,8 @@ struct WidgetBundleScanner {
     }
     
     private func loadDesignFromFolder(_ folderURL: URL) -> AnimationDesign? {
-        let manifestURL = folderURL.appendingPathComponent("manifest.json")
+        let designId = folderURL.lastPathComponent
+        let manifestURL = folderURL.appendingPathComponent("\(designId)_manifest.json")
         
         do {
             let data = try Data(contentsOf: manifestURL)
@@ -44,6 +45,7 @@ struct WidgetBundleScanner {
             struct Manifest: Codable {
                 let id: String
                 let name: String
+                let podiumName: String
                 let category: String
                 let frameCount: Int
                 let frameDuration: Double?
@@ -57,6 +59,7 @@ struct WidgetBundleScanner {
             return AnimationDesign(
                 id: manifest.id,
                 name: manifest.name,
+                podiumName: manifest.podiumName,
                 frameCount: manifest.frameCount,
                 frameRate: 1.0 / (manifest.frameDuration ?? 0.1)
             )
@@ -72,7 +75,7 @@ struct WidgetBundleScanner {
             return nil
         }
         
-        let frameName = String(format: "frame_%02d", frameIndex)
+        let frameName = String(format: "\(designId)_frame_%02d", frameIndex)
         let imagePath = "\(bundle)/\(designId)/\(frameName).png"
         
         return UIImage(contentsOfFile: imagePath)

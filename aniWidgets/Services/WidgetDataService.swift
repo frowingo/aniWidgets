@@ -125,18 +125,21 @@ class WidgetDataService: ObservableObject {
             AnimationDesign(
                 id: "manuelTest02",
                 name: "Manuel Test Animation",
+                podiumName: "Manuel Test Animation",
                 frameCount: 24,
                 frameRate: 10.0
             ),
             AnimationDesign(
                 id: "sample_01",
                 name: "Spinning Wheel",
+                podiumName: "Manuel Test Animation",
                 frameCount: 12,
                 frameRate: 12.5
             ),
             AnimationDesign(
                 id: "sample_02",
                 name: "Pulse Effect",
+                podiumName: "Manuel Test Animation",
                 frameCount: 8,
                 frameRate: 6.7
             )
@@ -152,6 +155,6 @@ class WidgetDataService: ObservableObject {
     }
     
     private func generateFrameNames(for design: AnimationDesign) -> [String] {
-        return (1...design.frameCount).map { String(format: "frame_%02d", $0) }
+        return (1...design.frameCount).map { String(format: "\(design.id)_frame_%02d", $0) }
     }
 }

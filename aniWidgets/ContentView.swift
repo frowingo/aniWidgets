@@ -5,28 +5,9 @@ struct ContentView: View {
     @StateObject private var designManager = DesignManager.shared
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                // Header
-                HeaderView()
-                
-                // Featured Designs Section
-                if !designManager.featuredDesigns.isEmpty {
-                    FeaturedDesignsSection()
-                        .environmentObject(designManager)
-                }
-                
-                Spacer()
-                
-                // Status Info
-                StatusInfoView()
-            }
-            .padding()
-            .navigationTitle("Ani Widgets")
-            .onAppear {
-                loadFeaturedDesigns()
-            }
-        }
+        
+        FeaturedDesignsView()
+        
     }
     
     private func loadFeaturedDesigns() {

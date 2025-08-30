@@ -30,7 +30,7 @@ struct AppGroupManager {
     }
     
     func frameImagePath(for designId: String, frameIndex: Int) -> URL {
-        let frameFileName = "frame_\(String(format: "%02d", frameIndex)).png"
+        let frameFileName = "\(designId)_frame_\(String(format: "%02d", frameIndex)).png"
         return appGroupDirectory.appendingPathComponent("Designs/\(designId)/frames/\(frameFileName)")
     }
     
@@ -429,7 +429,7 @@ struct DesignFrameView: View {
                 .ignoresSafeArea(.all)
         } else if designId == "test01" {
             // Fallback to bundle asset for test01
-            Image("frame_\(String(format: "%02d", frameIndex))")
+            Image("\(designId)_frame_\(String(format: "%02d", frameIndex))")
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -473,8 +473,8 @@ struct DesignFrameView: View {
     }
     
     private func loadFromBundleTestDesigns() -> UIImage? {
-        // Look for TestDesigns/{designId}/frame_{frameIndex}.png
-        guard let bundlePath = Bundle.main.path(forResource: "TestDesigns/\(designId)/frame_\(String(format: "%02d", frameIndex))", ofType: "png") else {
+        // Look for TestDesigns/{designId}/{designId}_frame_{frameIndex}.png
+        guard let bundlePath = Bundle.main.path(forResource: "TestDesigns/\(designId)/\(designId)_frame_\(String(format: "%02d", frameIndex))", ofType: "png") else {
             return nil
         }
         

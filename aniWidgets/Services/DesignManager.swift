@@ -14,6 +14,7 @@ class DesignManager: ObservableObject {
     @Published var availableDesigns: [AnimationDesign] = []
     @Published var featuredConfig: FeaturedConfig = FeaturedConfig()
     @Published var featuredDesigns: [AnimationDesign] = []
+    @Published var testDesigns: [AnimationDesign] = []
     @Published var isLoading = false
     
     private init() {
@@ -29,12 +30,19 @@ class DesignManager: ObservableObject {
         
         // frowi - tüm desingleri bu arrayde tutucak
         var designs: [AnimationDesign] = []
+        // frowi - test desingleri bu arrayde tutucak
+        var allTestDesigns: [AnimationDesign] = []
         
         // Load TestDesigns from bundle
         // frowi - statik test desingleri bundle'dan okuyup kaydediyor
         if let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil),
            let testDesigns = loadTestDesigns(from: testDesignsPath) {
             designs.append(contentsOf: testDesigns)
+            allTestDesigns.append(contentsOf: testDesigns)
+        }
+        
+        if allTestDesigns.isEmpty {
+            logger.error("TestDesigns not found or empty. Ensure folder is in bundle as a folder reference and file pattern matches <designId>_frame_XX.png")
         }
         
         // Load designs from App Group directory
@@ -44,6 +52,7 @@ class DesignManager: ObservableObject {
         
         DispatchQueue.main.async {
             self.availableDesigns = designs
+            self.testDesigns = allTestDesigns
             self.isLoading = false // frowi - design yükleme bitti
             self.updateFeaturedDesigns()
         }
@@ -96,42 +105,64 @@ class DesignManager: ObservableObject {
         return designs
     }
     
-    private func loadDesignFromDirectory(_ path: String, designId: String) -> AnimationDesign? {
-        let manifestPath = "\(path)/manifest.json"
-        
-        // frowi - manifest dosyasını bulamazsa dosya içerisindeki png sayısından design animasyon bilgilerini dönüyor
-        guard FileManager.default.fileExists(atPath: manifestPath) else {
-            // Create basic design from frame count
-            let frameCount = countFrames(in: path)
-            guard frameCount > 0 else { return nil }
-            
-            return AnimationDesign(
-                id: designId,
-                name: designId.capitalized,
-                frameCount: frameCount
-            )
-        }
-        
-        // Load from manifest
+    private func detectDesignId(in path: String) -> String? {
+        // Scan directory to infer designId from files like <prefix>_frame_01.png
         do {
-            let data = try Data(contentsOf: URL(fileURLWithPath: manifestPath))
-            let manifest = try JSONDecoder().decode(DesignManifest.self, from: data)
-            
-            return AnimationDesign(
-                id: designId,
-                name: manifest.name ?? designId.capitalized,
-                frameCount: manifest.frameCount,
-                frameRate: manifest.frameRate
-            )
+            let contents = try FileManager.default.contentsOfDirectory(atPath: path)
+            for name in contents {
+                // quick filter to avoid regex overhead
+                if name.contains("_frame_") && name.hasSuffix(".png") {
+                    // split on "_frame_"
+                    let parts = name.components(separatedBy: "_frame_")
+                    if let prefix = parts.first, !prefix.isEmpty {
+                        return prefix
+                    }
+                }
+            }
         } catch {
-            logger.error("Failed to load manifest for \(designId): \(error.localizedDescription)")
-            return nil
+            logger.error("detectDesignId failed for path: \(path), error: \(error.localizedDescription)")
         }
+        return nil
+    }
+    
+    private func loadDesignFromDirectory(_ path: String, designId: String) -> AnimationDesign? {
+        let manifestPath = "\(path)/\(designId)_manifest.json"
+        
+        // If there's a manifest, prefer it
+        if FileManager.default.fileExists(atPath: manifestPath) {
+            do {
+                let data = try Data(contentsOf: URL(fileURLWithPath: manifestPath))
+                let manifest = try JSONDecoder().decode(DesignManifest.self, from: data)
+                return AnimationDesign(
+                    id: designId, // keep folder name as id when manifest exists
+                    name: manifest.name ?? designId.capitalized,
+                    podiumName: manifest.podiumName ?? designId.capitalized,
+                    frameCount: manifest.frameCount,
+                    frameRate: manifest.frameRate
+                )
+            } catch {
+                logger.error("Failed to load manifest for \(designId): \(error.localizedDescription)")
+                // continue to fallback below
+            }
+        }
+        
+        // No (or failed) manifest: infer the real prefix from files if needed
+        let inferredId = detectDesignId(in: path) ?? designId
+        let frameCount = countFrames(in: path, designId: inferredId)
+        
+        guard frameCount > 0 else { return nil }
+        
+        return AnimationDesign(
+            id: inferredId,
+            name: inferredId.capitalized,
+            podiumName: inferredId.capitalized,
+            frameCount: frameCount
+        )
     }
     
     private func loadDesignFromAppGroup(_ folderURL: URL) -> AnimationDesign? {
         let designId = folderURL.lastPathComponent
-        let manifestURL = folderURL.appendingPathComponent("manifest.json")
+        let manifestURL = folderURL.appendingPathComponent("\(designId)_manifest.json")
         
         guard FileManager.default.fileExists(atPath: manifestURL.path) else {
             return nil
@@ -146,10 +177,26 @@ class DesignManager: ObservableObject {
         }
     }
     
-    private func countFrames(in path: String) -> Int {
+    private func countFrames(in path: String, designId: String) -> Int {
         do {
             let contents = try FileManager.default.contentsOfDirectory(atPath: path)
-            return contents.filter { $0.hasPrefix("frame_") && $0.hasSuffix(".png") }.count
+            // primary: exact prefix
+            var count = contents.filter { $0.hasPrefix("\(designId)_frame_") && $0.hasSuffix(".png") }.count
+            if count == 0 {
+                // fallback: lowercase prefix
+                let lower = designId.lowercased()
+                count = contents.filter { $0.hasPrefix("\(lower)_frame_") && $0.hasSuffix(".png") }.count
+            }
+            if count == 0 {
+                // fallback: uppercase prefix
+                let upper = designId.uppercased()
+                count = contents.filter { $0.hasPrefix("\(upper)_frame_") && $0.hasSuffix(".png") }.count
+            }
+            if count == 0 {
+                // last resort: any *_frame_XX.png regardless of prefix
+                count = contents.filter { $0.contains("_frame_") && $0.hasSuffix(".png") }.count
+            }
+            return count
         } catch {
             return 0
         }
@@ -224,12 +271,24 @@ class DesignManager: ObservableObject {
     }
     
     private func loadFrameFromBundle(designId: String, frameIndex: Int) -> UIImage? {
-        let frameName = String(format: "frame_%02d", frameIndex + 1)
-        return UIImage(named: "\(designId)/\(frameName)")
+        let frameBase = String(format: "\(designId)_frame_%02d", frameIndex + 1)
+        // Look for a PNG inside TestDesigns/<designId>
+        if let path = Bundle.main.path(
+            forResource: frameBase,
+            ofType: "png",
+            inDirectory: "TestDesigns/\(designId)"
+        ) {
+            return UIImage(contentsOfFile: path)
+        }
+        // Fallback: try without explicit inDirectory (in case of flat resources)
+        if let path = Bundle.main.path(forResource: "\(designId)/\(frameBase)", ofType: "png") {
+            return UIImage(contentsOfFile: path)
+        }
+        return nil
     }
     
     private func loadFrameFromAppGroup(designId: String, frameIndex: Int) -> UIImage? {
-        let frameName = String(format: "frame_%02d.png", frameIndex + 1)
+        let frameName = String(format: "\(designId)_frame_%02d.png", frameIndex + 1)
         let frameURL = appGroupManager.designFramesDirectory(for: designId).appendingPathComponent(frameName)
         
         guard FileManager.default.fileExists(atPath: frameURL.path) else {
@@ -254,11 +313,13 @@ class DesignManager: ObservableObject {
 
 private struct DesignManifest: Codable {
     let name: String?
+    let podiumName: String?
     let frameCount: Int
     let frameRate: Double
     
     enum CodingKeys: String, CodingKey {
         case name
+        case podiumName
         case frameCount = "frame_count"
         case frameRate = "frame_rate"
     }
