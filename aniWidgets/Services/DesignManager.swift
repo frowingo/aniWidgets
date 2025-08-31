@@ -241,12 +241,10 @@ class DesignManager: ObservableObject {
         guard self.featuredConfig.designs.count < self.featuredConfig.maxCount else { return }
         
         self.featuredConfig.designs.append(designId)
-        saveFeaturedConfig()
     }
     
     func removeFromFeatured(_ designId: String) {
         self.featuredConfig.designs.removeAll { $0 == designId }
-        saveFeaturedConfig()
     }
     
     func moveFeaturedDesign(from source: IndexSet, to destination: Int) {

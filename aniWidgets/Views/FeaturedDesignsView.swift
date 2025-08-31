@@ -6,36 +6,86 @@ struct FeaturedDesignsView: View {
     @ObservedObject private var designManager = DesignManager.shared
     @State private var draggedDesign: String?
     @State private var showExpandableGrid: Bool = false
+    @State private var showSaveToast: Bool = false
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                
-                HeaderView()
-                statusInfoView
-                featuredSlotsView
-                saveDesignButton
-                expandableTestDesigns
-                
-                Spacer()
+        ZStack(alignment: .bottom) {
+            
+            backgroundGradient
+
+            ScrollView {
+                VStack(spacing: 20) {
+                    headerView()
+                    statusInfoView
+                    featuredSlotsView
+                    saveDesignButton
+                    expandableTestDesigns
+                    Spacer()
+                }
+                .padding()
             }
-            .padding()
+
+            // Bottom toast
+            if showSaveToast {
+                saveToast
+            }
         }
+        .animation(.easeInOut(duration: 0.6), value: showSaveToast)
     }
     
-    private struct HeaderView: View {
-        var body: some View {
-            VStack {
-                Text("aniWidget App")
-                    .font(.largeTitle.weight(.semibold))
-                    .fontWeight(.bold)
+    private var backgroundGradient: some View {
+        LinearGradient(colors: [Color(.blue), Color.black, Color.cyan, Color(.black)],
+                       startPoint: .topLeading,
+                       endPoint: .bottomTrailing)
+            .ignoresSafeArea()
+    }
+    
+    private struct headerView: View {
+    var body: some View {
+        ZStack {
+            // Gradient background with subtle border
+            LinearGradient(colors: [Color.teal, Color.blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
+
+            HStack(alignment: .center, spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(0.2))
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 44, height: 44)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("aniWidget App")
+                        .font(.title2.weight(.semibold))
+                        .foregroundColor(.white)
+                    Text("Small details, big impact")
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.9))
+                }
+
+                Spacer()
+
+                Text("t1.0")
+                    .font(.caption2.weight(.semibold))
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                    .background(Color.white.opacity(0.2))
+                    .clipShape(Capsule())
                     .foregroundColor(.white)
             }
-            .padding()
-            .background(Color.teal)
-            .cornerRadius(12)
+            .padding(16)
         }
+        .frame(maxWidth: .infinity)
     }
+}
     
     private var statusInfoView: some View {
         VStack(spacing: 8) {
@@ -45,17 +95,6 @@ struct FeaturedDesignsView: View {
                 Text("\(designManager.featuredConfig.designs.count)/4 Featured Designs")
                     .font(.headline)
                 Spacer()
-            }
-            
-            if !designManager.featuredConfig.designs.isEmpty {
-                HStack {
-                    Image(systemName: "info.circle")
-                        .foregroundColor(.blue)
-                    Text("These will appear in your widget gallery")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
             }
         }
         .padding()
@@ -154,7 +193,26 @@ struct FeaturedDesignsView: View {
     }
     
     private var saveDesignButton: some View {
-        NavigationLink(destination: DesignSelectionView()) {
+    Button(action: {
+        // Save current featured selection and refresh widgets
+        withAnimation {
+            designManager.saveFeaturedConfig()
+            WidgetCenter.shared.reloadAllTimelines()
+            showSaveToast = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                withAnimation { showSaveToast = false }
+            }
+        }
+    }) {
+        ZStack{
+            LinearGradient(colors: [Color.teal, Color.blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
+            
             HStack {
                 Image(systemName: "square.and.arrow.down.on.square")
                 Text("Save Slots")
@@ -163,9 +221,26 @@ struct FeaturedDesignsView: View {
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .padding()
-            .background(Color.blue)
             .cornerRadius(12)
         }
+    }
+    .buttonStyle(.plain)
+}
+    
+    private var saveToast: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.white)
+            Text("Saved")
+                .font(.subheadline)
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.green.opacity(0.8))
+        .cornerRadius(12)
+        .padding(.bottom, 24)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
 
@@ -316,15 +391,17 @@ struct DesignPodiumSlotCard: View {
                         if isInFeatured {
                             HStack(spacing: 4) {
                                 Image(systemName: "star.fill")
-                                    .foregroundColor(.yellow)
+                                    .foregroundColor(.orange)
                                 Text("Featured")
                                     .font(.caption2)
-                                    .foregroundColor(.yellow)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.orange)
                             }
                         } else if isFeaturedFull {
                             Text("Featured Full")
                                 .font(.caption2)
-                                .foregroundColor(.gray)
+                                .fontWeight(.bold)
+                                .foregroundColor(.black)
                         }
                     }
                 } else {
@@ -359,8 +436,8 @@ struct DesignPodiumSlotCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(
-                    isInFeatured ? Color.yellow : 
-                    (design != nil && !isDisabled ? Color.blue : Color(.systemGray4)), 
+                    isInFeatured ? Color.orange :
+                    (design != nil && !isDisabled ? Color.blue : Color(.systemGray4)),
                     lineWidth: isInFeatured ? 2 : (design != nil ? 1 : 1)
                 )
         )
