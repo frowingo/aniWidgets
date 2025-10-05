@@ -162,7 +162,7 @@ struct FeaturedDesignsView: View {
                                     designManager.addToFeatured(designId)
                                 }
                             },
-                            onRemove: { _ in }
+                            onRemove: { designId in designManager.removeFromFeatured(designId) }
                         )
                         .transition(.scale.combined(with: .opacity))
                     }

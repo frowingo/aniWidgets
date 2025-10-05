@@ -33,7 +33,7 @@ class DesignManager: ObservableObject {
         // frowi - test desingleri bu arrayde tutucak
         var allTestDesigns: [AnimationDesign] = []
         
-        // Load TestDesigns from bundle
+        
         // frowi - statik test desingleri bundle'dan okuyup kaydediyor
         if let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil),
            let testDesigns = loadTestDesigns(from: testDesignsPath) {
@@ -56,8 +56,6 @@ class DesignManager: ObservableObject {
             self.isLoading = false // frowi - design yükleme bitti
             self.updateFeaturedDesigns()
         }
-        
-        logger.info("Loaded \(designs.count) local designs")
     }
     
     private func loadTestDesigns(from path: String) -> [AnimationDesign]? {
@@ -227,6 +225,11 @@ class DesignManager: ObservableObject {
     func saveFeaturedConfig() {
         do {
             try appGroupManager.saveData(self.featuredConfig, to: appGroupManager.featuredConfigPath)
+            // TODO: kaydetme sorununu çözer belki diye yaptım ilerde kontrol et
+            DispatchQueue.main.async {
+                self.updateFeaturedDesigns()
+            }
+            // --------------
             logger.info("Saved featured config")
             
             // Reload widgets
@@ -241,10 +244,12 @@ class DesignManager: ObservableObject {
         guard self.featuredConfig.designs.count < self.featuredConfig.maxCount else { return }
         
         self.featuredConfig.designs.append(designId)
+        saveFeaturedConfig()
     }
     
     func removeFromFeatured(_ designId: String) {
         self.featuredConfig.designs.removeAll { $0 == designId }
+        saveFeaturedConfig()
     }
     
     func moveFeaturedDesign(from source: IndexSet, to destination: Int) {
@@ -259,13 +264,26 @@ class DesignManager: ObservableObject {
     }
     
     func getFrameImage(for designId: String, frameIndex: Int) -> UIImage? {
-        // Try to load from bundle first (TestDesigns)
+        // First try App Group (primary source)
+        if let appGroupImage = loadFrameFromAppGroup(designId: designId, frameIndex: frameIndex) {
+            return appGroupImage
+        }
+        
+        // Fallback: Try to load from bundle and copy to App Group
         if let bundleImage = loadFrameFromBundle(designId: designId, frameIndex: frameIndex) {
+            // Copy this design to App Group for future use
+            Task {
+                if let design = getDesign(by: designId),
+                   let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil) {
+                    let designBundlePath = "\(testDesignsPath)/\(designId)"
+                    try? appGroupManager.copyFramesToAppGroup(for: design, from: designBundlePath)
+                }
+            }
             return bundleImage
         }
         
-        // Try to load from App Group
-        return loadFrameFromAppGroup(designId: designId, frameIndex: frameIndex)
+        logger.warning("⚠️ No frame found for \(designId) index \(frameIndex)")
+        return nil
     }
     
     private func loadFrameFromBundle(designId: String, frameIndex: Int) -> UIImage? {

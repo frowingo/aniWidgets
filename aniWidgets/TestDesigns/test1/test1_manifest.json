@@ -1,6 +1,6 @@
 {
-    "name" : "test1",
-    "podiumName" : "Kargacık Burgacık",
-    "frame_count" : "24",
-    "frame_rate" : "24",
-  }
+  "name": "test1",
+  "podiumName": "Kargacık Burgacık",
+  "frame_count": 24,
+  "frame_rate": 24
+}

@@ -28,6 +28,10 @@ struct aniWidgetsApp: App {
     private func setupAppGroup() {
         // App Group dizin yapısını oluştur
         let _ = AppGroupStore.shared
-        appLogger.info("📁 App Group setup completed")
+        
+        // Design Manager'ı başlat (otomatik sync tetikler)
+        let _ = DesignManager.shared
+        
+        appLogger.info("📁 App Group setup completed with frame sync")
     }
 }

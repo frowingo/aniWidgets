@@ -22,7 +22,7 @@ struct AppGroupManager {
     }
     
     var featuredConfigPath: URL {
-        return appGroupDirectory.appendingPathComponent("Config/featured.json")
+        return appGroupDirectory.appendingPathComponent("State/featured_config.json")
     }
     
     func instanceStatePath(for instanceId: String) -> URL {
@@ -429,7 +429,8 @@ struct DesignFrameView: View {
                 .ignoresSafeArea(.all)
         } else if designId == "test01" {
             // Fallback to bundle asset for test01
-            Image("\(designId)_frame_\(String(format: "%02d", frameIndex))")
+            let imageName = "\(designId)_frame_\(String(format: "%02d", frameIndex))"
+            Image(imageName)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -457,29 +458,39 @@ struct DesignFrameView: View {
     }
     
     private func loadFrameImage() -> UIImage? {
-        // First try App Group path (for downloaded designs)
+        widgetLogger.info("🔍 Widget: Loading frame for \(designId) index \(frameIndex)")
+        
+        // Primary: Try App Group path
         let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: frameIndex)
         
         if FileManager.default.fileExists(atPath: framePath.path) {
+            widgetLogger.info("✅ Widget: Found in App Group: \(framePath.lastPathComponent)")
             return UIImage(contentsOfFile: framePath.path)
+        } else {
+            widgetLogger.warning("⚠️ Widget: Not found in App Group: \(framePath.lastPathComponent)")
         }
         
-        // Try bundle test design path (for TestDesigns folder)
-        if let bundleFrameImage = loadFromBundleTestDesigns() {
-            return bundleFrameImage
+        // Fallback: Assets.xcassets (only for specific designs)
+        if designId == "test01" {
+            let imageName = "test01_frame_\(String(format: "%02d", frameIndex))"
+            widgetLogger.info("🎨 Widget: Trying Assets.xcassets fallback: \(imageName)")
+            // Note: Bu SwiftUI Image, UIImage değil - bu kısım View'da handle edilir
         }
         
+        widgetLogger.error("❌ Widget: No frame found for \(designId) index \(frameIndex)")
         return nil
     }
     
-    private func loadFromBundleTestDesigns() -> UIImage? {
-        // Look for TestDesigns/{designId}/{designId}_frame_{frameIndex}.png
-        guard let bundlePath = Bundle.main.path(forResource: "TestDesigns/\(designId)/\(designId)_frame_\(String(format: "%02d", frameIndex))", ofType: "png") else {
-            return nil
-        }
-        
-        return UIImage(contentsOfFile: bundlePath)
-    }
+//    private func loadFromBundleTestDesigns() -> UIImage? {
+//        // Look for TestDesigns/{designId}/{designId}_frame_{frameIndex}.png
+//        guard let bundlePath = Bundle.main.path(forResource: "TestDesigns/\(designId)/\(designId)_frame_\(String(format: "%02d", frameIndex))", ofType: "png") else {
+//            widgetLogger.error("❌ Widget: TestDesigns not found for \(designId) frame \(frameIndex)")
+//            return nil
+//        }
+//        
+//        widgetLogger.info("✅ Widget: Found TestDesigns frame at \(bundlePath)")
+//        return UIImage(contentsOfFile: bundlePath)
+//    }
 }
 
 struct EmptySlotView: View {

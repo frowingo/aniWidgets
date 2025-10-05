@@ -76,7 +76,7 @@ class WidgetInstanceManager: ObservableObject {
     }
     
     func updateInstanceFrame(_ instanceId: String, frameIndex: Int) {
-        guard var state = activeInstances[instanceId] else {
+        guard let state = activeInstances[instanceId] else {
             logger.warning("Attempted to update non-existent instance \(instanceId)")
             return
         }
@@ -97,7 +97,7 @@ class WidgetInstanceManager: ObservableObject {
     }
     
     func toggleInstanceAnimation(_ instanceId: String) {
-        guard var state = activeInstances[instanceId] else {
+        guard let state = activeInstances[instanceId] else {
             logger.warning("Attempted to toggle animation for non-existent instance \(instanceId)")
             return
         }

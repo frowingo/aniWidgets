@@ -1,5 +1,6 @@
 import Foundation
 import os.log
+import SharedKit
 
 class AppGroupManager {
     static let shared = AppGroupManager()
@@ -157,5 +158,85 @@ class AppGroupManager {
             }
         }
         return totalSize
+    }
+    
+    
+    // MARK: - Frame Management
+    func copyFramesToAppGroup(for design: AnimationDesign, from bundlePath: String) throws {
+        let designDir = designDirectory(for: design.id)
+        let framesDir = designFramesDirectory(for: design.id)
+        
+        logger.info("🔄 Copying frames for design: \(design.id)")
+        
+        // Copy all frame files
+        for frameIndex in 1...design.frameCount {
+            let frameName = "\(design.id)_frame_\(String(format: "%02d", frameIndex)).png"
+            let sourcePath = "\(bundlePath)/\(frameName)"
+            let destinationURL = framesDir.appendingPathComponent(frameName)
+            
+            // Skip if already exists
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                continue
+            }
+            
+            // Copy frame file
+            if fileManager.fileExists(atPath: sourcePath) {
+                try fileManager.copyItem(atPath: sourcePath, toPath: destinationURL.path)
+                logger.info("✅ Copied frame: \(frameName)")
+            } else {
+                logger.warning("⚠️ Frame not found: \(sourcePath)")
+            }
+        }
+        
+        // Copy manifest file
+        let manifestSource = "\(bundlePath)/\(design.id)_manifest.json"
+        let manifestDest = designDir.appendingPathComponent("\(design.id)_manifest.json")
+        
+        if fileManager.fileExists(atPath: manifestSource) && !fileManager.fileExists(atPath: manifestDest.path) {
+            try fileManager.copyItem(atPath: manifestSource, toPath: manifestDest.path)
+            logger.info("✅ Copied manifest for: \(design.id)")
+        }
+    }
+
+    func verifyDesignFrames(for designId: String) -> Bool {
+        let framesDir = designFramesDirectory(for: designId)
+        
+        do {
+            let contents = try fileManager.contentsOfDirectory(atPath: framesDir.path)
+            let frameCount = contents.filter { $0.hasPrefix("\(designId)_frame_") && $0.hasSuffix(".png") }.count
+            logger.info("📊 Design \(designId) has \(frameCount) frames in App Group")
+            return frameCount > 0
+        } catch {
+            logger.error("❌ Failed to verify frames for \(designId): \(error)")
+            return false
+        }
+    }
+
+    func syncAllDesignsToAppGroup(designs: [AnimationDesign]) async throws {
+        logger.info("🔄 Starting bulk sync of \(designs.count) designs to App Group")
+        
+        guard let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil) else {
+            throw AppGroupError.testDesignsNotFound
+        }
+        
+        for design in designs {
+            let designBundlePath = "\(testDesignsPath)/\(design.id)"
+            
+            if fileManager.fileExists(atPath: designBundlePath) {
+                do {
+                    try copyFramesToAppGroup(for: design, from: designBundlePath)
+                    logger.info("✅ Synced design: \(design.id)")
+                } catch {
+                    logger.error("❌ Failed to sync design \(design.id): \(error)")
+                }
+            }
+        }
+        
+        logger.info("🎉 Bulk sync completed")
+    }
+
+    enum AppGroupError: Error {
+        case testDesignsNotFound
+        case frameCopyFailed(String)
     }
 }
