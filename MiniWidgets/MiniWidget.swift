@@ -10,44 +10,44 @@ private let widgetLogger = Logger(subsystem: "com.aniwidgets.logging", category:
 // Note: These are simplified versions for the widget extension
 // The full versions are in the main app target
 
-struct AppGroupManager {
-    let appGroupId = "group.Iworf.aniWidgets"
-    private let fileManager = FileManager.default
-    
-    private var appGroupDirectory: URL {
-        guard let url = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
-            fatalError("App Group directory not found: \(appGroupId)")
-        }
-        return url
-    }
-    
-    var featuredConfigPath: URL {
-        return appGroupDirectory.appendingPathComponent("State/featured_config.json")
-    }
-    
-    func instanceStatePath(for instanceId: String) -> URL {
-        return appGroupDirectory.appendingPathComponent("State/instances/\(instanceId).json")
-    }
-    
-    func frameImagePath(for designId: String, frameIndex: Int) -> URL {
-        let frameFileName = "\(designId)_frame_\(String(format: "%02d", frameIndex)).png"
-        return appGroupDirectory.appendingPathComponent("Designs/\(designId)/frames/\(frameFileName)")
-    }
-    
-    func loadData<T: Codable>(_ type: T.Type, from url: URL) throws -> T {
-        let data = try Data(contentsOf: url)
-        return try JSONDecoder().decode(type, from: data)
-    }
-    
-    func saveData<T: Codable>(_ data: T, to url: URL) throws {
-        let directory = url.deletingLastPathComponent()
-        if !fileManager.fileExists(atPath: directory.path) {
-            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
-        }
-        let jsonData = try JSONEncoder().encode(data)
-        try jsonData.write(to: url)
-    }
-}
+//struct AppGroupManager {
+//    let appGroupId = "group.Iworf.aniWidgets"
+//    private let fileManager = FileManager.default
+//    
+//    private var appGroupDirectory: URL {
+//        guard let url = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
+//            fatalError("App Group directory not found: \(appGroupId)")
+//        }
+//        return url
+//    }
+//    
+//    var featuredConfigPath: URL {
+//        return appGroupDirectory.appendingPathComponent("State/featured_config.json")
+//    }
+//    
+//    func instanceStatePath(for instanceId: String) -> URL {
+//        return appGroupDirectory.appendingPathComponent("State/instances/\(instanceId).json")
+//    }
+//    
+//    func frameImagePath(for designId: String, frameIndex: Int) -> URL {
+//        let frameFileName = "\(designId)_frame_\(String(format: "%02d", frameIndex)).png"
+//        return appGroupDirectory.appendingPathComponent("Designs/\(designId)/frames/\(frameFileName)")
+//    }
+//    
+//    func loadData<T: Codable>(_ type: T.Type, from url: URL) throws -> T {
+//        let data = try Data(contentsOf: url)
+//        return try JSONDecoder().decode(type, from: data)
+//    }
+//    
+//    func saveData<T: Codable>(_ data: T, to url: URL) throws {
+//        let directory = url.deletingLastPathComponent()
+//        if !fileManager.fileExists(atPath: directory.path) {
+//            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+//        }
+//        let jsonData = try JSONEncoder().encode(data)
+//        try jsonData.write(to: url)
+//    }
+//}
 
 // MARK: - Widget Time Manager
 
@@ -72,7 +72,7 @@ struct WidgetInstanceState: Codable {
 // MARK: - Minimal Widget Instance Manager for Extension
 
 struct WidgetInstanceManager {
-    private let appGroupManager = AppGroupManager()
+    private let appGroupManager = AppGroupManager.shared
     
     func loadInstanceState(_ instanceId: String) -> WidgetInstanceState? {
         let statePath = appGroupManager.instanceStatePath(for: instanceId)
@@ -194,7 +194,7 @@ struct FeaturedWidgetSlotD: Widget, FeaturedWidgetProtocol {
 struct FeaturedWidgetProvider: TimelineProvider {
     typealias Entry = FeaturedWidgetEntry
     let slotIndex: Int
-    private let appGroupManager = AppGroupManager()
+    private let appGroupManager = AppGroupManager.shared
     private let appStore = AppGroupStore.shared
     private let logger = SharedLogger.shared
     
@@ -417,7 +417,7 @@ struct FeaturedWidgetView: View {
 struct DesignFrameView: View {
     let designId: String
     let frameIndex: Int
-    private let appGroupManager = AppGroupManager()
+    private let appGroupManager = AppGroupManager.shared
     
     var body: some View {
         if let frameImage = loadFrameImage() {

@@ -223,16 +223,26 @@ class DesignManager: ObservableObject {
     }
     
     func saveFeaturedConfig() {
+        self.updateFeaturedDesigns()
         do {
             try appGroupManager.saveData(self.featuredConfig, to: appGroupManager.featuredConfigPath)
-            // TODO: kaydetme sorununu çözer belki diye yaptım ilerde kontrol et
-            DispatchQueue.main.async {
-                self.updateFeaturedDesigns()
+
+            // 👇 Eklenen kısım: featured olan tasarımların frame'lerini App Group'a kopyala
+            if let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil) {
+                for id in self.featuredConfig.designs {
+                    if let design = self.getDesign(by: id) {
+                        let designBundlePath = "\(testDesignsPath)/\(design.id)"
+                        do {
+                            try self.appGroupManager.copyFramesToAppGroup(for: design, from: designBundlePath)
+                        } catch {
+                            self.logger.error("Failed to copy frames for \(design.id): \(error.localizedDescription)")
+                        }
+                    }
+                }
+            } else {
+                self.logger.error("TestDesigns path not found in bundle; cannot copy frames to App Group.")
             }
-            // --------------
-            logger.info("Saved featured config")
-            
-            // Reload widgets
+            // ☝️ Eklenen kısım bitti
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
             logger.error("Failed to save featured config: \(error.localizedDescription)")
