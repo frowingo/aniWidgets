@@ -30,7 +30,12 @@ struct aniWidgetsApp: App {
         let _ = AppGroupStore.shared
         
         // Design Manager'ı başlat (otomatik sync tetikler)
-        let _ = DesignManager.shared
+        let designManager = DesignManager.shared
+        
+        // Debug: App Group durumunu kontrol et
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            designManager.debugAppGroupState()
+        }
         
         appLogger.info("📁 App Group setup completed with frame sync")
     }

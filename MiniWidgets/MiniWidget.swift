@@ -10,44 +10,8 @@ private let widgetLogger = Logger(subsystem: "com.aniwidgets.logging", category:
 // Note: These are simplified versions for the widget extension
 // The full versions are in the main app target
 
-//struct AppGroupManager {
-//    let appGroupId = "group.Iworf.aniWidgets"
-//    private let fileManager = FileManager.default
-//    
-//    private var appGroupDirectory: URL {
-//        guard let url = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
-//            fatalError("App Group directory not found: \(appGroupId)")
-//        }
-//        return url
-//    }
-//    
-//    var featuredConfigPath: URL {
-//        return appGroupDirectory.appendingPathComponent("State/featured_config.json")
-//    }
-//    
-//    func instanceStatePath(for instanceId: String) -> URL {
-//        return appGroupDirectory.appendingPathComponent("State/instances/\(instanceId).json")
-//    }
-//    
-//    func frameImagePath(for designId: String, frameIndex: Int) -> URL {
-//        let frameFileName = "\(designId)_frame_\(String(format: "%02d", frameIndex)).png"
-//        return appGroupDirectory.appendingPathComponent("Designs/\(designId)/frames/\(frameFileName)")
-//    }
-//    
-//    func loadData<T: Codable>(_ type: T.Type, from url: URL) throws -> T {
-//        let data = try Data(contentsOf: url)
-//        return try JSONDecoder().decode(type, from: data)
-//    }
-//    
-//    func saveData<T: Codable>(_ data: T, to url: URL) throws {
-//        let directory = url.deletingLastPathComponent()
-//        if !fileManager.fileExists(atPath: directory.path) {
-//            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
-//        }
-//        let jsonData = try JSONEncoder().encode(data)
-//        try jsonData.write(to: url)
-//    }
-//}
+// AppGroupManager Widget extension version - using SharedKit
+// Note: Using SharedKit.AppGroupManager instead of local implementation
 
 // MARK: - Widget Time Manager
 
@@ -227,10 +191,15 @@ struct FeaturedWidgetProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<FeaturedWidgetEntry>) -> ()) {
         logger.info("📊 Timeline requested for slot \(slotIndex)")
         
+        // Debug App Group access
+        logger.info("🔍 Widget Debug: App Group ID = \(appGroupManager.appGroupId)")
+        logger.info("🔍 Widget Debug: App Group Directory = \(appGroupManager.appGroupDirectory.path)")
+        
         // Try to load from App Group first, then fallback to featured design
         let designId = loadCurrentWidgetDesignId() ?? getFeaturedDesignId(for: slotIndex)
         
         guard let designId = designId else {
+            logger.warning("⚠️ No design found for slot \(slotIndex)")
             // No design for this slot
             let entry = FeaturedWidgetEntry(
                 date: Date(),
@@ -245,21 +214,70 @@ struct FeaturedWidgetProvider: TimelineProvider {
             return
         }
         
+        logger.info("✅ Using design \(designId) for slot \(slotIndex)")
+        
+        // Debug: Check if frames exist in App Group
+        let testFramePath = appGroupManager.frameImagePath(for: designId, frameIndex: 1)
+        logger.info("🔍 Widget Debug: Test frame path = \(testFramePath.path)")
+        logger.info("🔍 Widget Debug: Frame exists = \(FileManager.default.fileExists(atPath: testFramePath.path))")
+        
         // Create or get instance for this widget
         let instanceId = getOrCreateInstanceId(for: context, designId: designId)
         let instanceManager = WidgetInstanceManager()
         
+        logger.info("🔍 Widget: Using instance ID: \(instanceId)")
+        
         if let instanceState = instanceManager.loadInstanceState(instanceId) {
+            logger.info("✅ Widget: Loaded existing instance state - frame: \(instanceState.currentFrame), animating: \(instanceState.isAnimating)")
+            
             if instanceState.isAnimating, let startTime = instanceState.animationStartTime {
-                // Generate animation timeline
-                let entries = generateAnimationTimeline(
-                    startTime: startTime,
-                    designId: designId,
-                    instanceId: instanceId,
-                    slotIndex: slotIndex
-                )
-                let timeline = Timeline(entries: entries, policy: .atEnd)
-                completion(timeline)
+                // Check if animation should still be running
+                let currentDate = Date()
+                let animationDuration: TimeInterval = 24 * 0.5 + 1.0 // 24 frames * 0.5s + 1s buffer
+                let animationEndTime = startTime.addingTimeInterval(animationDuration)
+                
+                if currentDate < animationEndTime {
+                    // Animation still active
+                    let entries = generateAnimationTimeline(
+                        startTime: startTime,
+                        designId: designId,
+                        instanceId: instanceId,
+                        slotIndex: slotIndex
+                    )
+                    let timeline = Timeline(entries: entries, policy: .atEnd)
+                    logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with \(entries.count) animation entries")
+                    completion(timeline)
+                } else {
+                    // Animation finished, reset to static
+                    logger.info("⏰ Widget: Animation expired, resetting to static state")
+                    var updatedState = instanceState
+                    updatedState.isAnimating = false
+                    updatedState.animationStartTime = nil
+                    updatedState.currentFrame = 1
+                    
+                    // Save updated state
+                    do {
+                        let statePath = appGroupManager.instanceStatePath(for: instanceId)
+                        let data = try JSONEncoder().encode(updatedState)
+                        try data.write(to: statePath)
+                    } catch {
+                        logger.error("Failed to update instance state: \(error)")
+                    }
+                    
+                    // Create static entry
+                    let entry = FeaturedWidgetEntry(
+                        date: Date(),
+                        slotIndex: slotIndex,
+                        designId: designId,
+                        frameIndex: 1,
+                        instanceId: instanceId,
+                        isAnimating: false
+                    )
+                    logger.info("📌 Widget: Creating static entry after animation reset")
+                    let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300)))
+                    logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with static entry (post-animation)")
+                    completion(timeline)
+                }
             } else {
                 // Static entry
                 let entry = FeaturedWidgetEntry(
@@ -270,12 +288,17 @@ struct FeaturedWidgetProvider: TimelineProvider {
                     instanceId: instanceId,
                     isAnimating: false
                 )
-                let timeline = Timeline(entries: [entry], policy: .never)
+                logger.info("📌 Widget: Creating static entry for \(designId) frame \(instanceState.currentFrame)")
+                let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300))) // Refresh in 5 minutes
+                logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with static entry")
                 completion(timeline)
             }
         } else {
             // Create new instance
+            logger.info("⚠️ Widget: No existing instance found, creating new one")
             let newInstanceId = instanceManager.createInstance(designId: designId)
+            logger.info("✅ Widget: Created new instance: \(newInstanceId)")
+            
             let entry = FeaturedWidgetEntry(
                 date: Date(),
                 slotIndex: slotIndex,
@@ -284,7 +307,9 @@ struct FeaturedWidgetProvider: TimelineProvider {
                 instanceId: newInstanceId,
                 isAnimating: false
             )
-            let timeline = Timeline(entries: [entry], policy: .never)
+            logger.info("📌 Widget: Creating new instance entry for \(designId) frame 1")
+            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300))) // Refresh in 5 minutes
+            logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with new instance")
             completion(timeline)
         }
     }
@@ -304,10 +329,22 @@ struct FeaturedWidgetProvider: TimelineProvider {
     
     private func getFeaturedDesignId(for slotIndex: Int) -> String? {
         do {
+            logger.info("🔍 Widget: Loading featured config for slot \(slotIndex)")
             let featuredConfig = try appGroupManager.loadData(FeaturedConfig.self, from: appGroupManager.featuredConfigPath)
-            return slotIndex < featuredConfig.designs.count ? featuredConfig.designs[slotIndex] : nil
+            logger.info("✅ Widget: Loaded featured config with \(featuredConfig.designs.count) designs: \(featuredConfig.designs)")
+            
+            if slotIndex < featuredConfig.designs.count {
+                let designId = featuredConfig.designs[slotIndex]
+                logger.info("✅ Widget: Selected design \(designId) for slot \(slotIndex)")
+                return designId
+            } else {
+                logger.warning("⚠️ Widget: Slot index \(slotIndex) exceeds featured designs count (\(featuredConfig.designs.count))")
+                return nil
+            }
         } catch {
-            widgetLogger.warning("⚠️ Could not load featured config: \(error)")
+            logger.error("❌ Widget: Could not load featured config: \(error.localizedDescription)")
+            logger.error("❌ Widget: Featured config path: \(appGroupManager.featuredConfigPath.path)")
+            logger.error("❌ Widget: File exists: \(FileManager.default.fileExists(atPath: appGroupManager.featuredConfigPath.path))")
             return nil
         }
     }
@@ -339,35 +376,36 @@ struct FeaturedWidgetProvider: TimelineProvider {
         let frameInterval: Double = 0.5
         let totalFrames = 24
         
+        // If animation start time is in the past, start from now
+        let actualStartTime = max(startTime, currentDate)
+        logger.info("🎬 Widget: Animation timeline - originalStart: \(startTime), actualStart: \(actualStartTime), current: \(currentDate)")
+        
         for i in 1...totalFrames {
-            let entryDate = startTime.addingTimeInterval(Double(i - 1) * frameInterval)
-            if entryDate > currentDate {
-                let entry = FeaturedWidgetEntry(
-                    date: entryDate,
-                    slotIndex: slotIndex,
-                    designId: designId,
-                    frameIndex: i,
-                    instanceId: instanceId,
-                    isAnimating: true
-                )
-                entries.append(entry)
-            }
+            let entryDate = actualStartTime.addingTimeInterval(Double(i - 1) * frameInterval)
+            let entry = FeaturedWidgetEntry(
+                date: entryDate,
+                slotIndex: slotIndex,
+                designId: designId,
+                frameIndex: i,
+                instanceId: instanceId,
+                isAnimating: true
+            )
+            entries.append(entry)
         }
         
         // Reset entry at the end
-        let resetDate = startTime.addingTimeInterval(Double(totalFrames) * frameInterval + 1.0)
-        if resetDate > currentDate {
-            let resetEntry = FeaturedWidgetEntry(
-                date: resetDate,
-                slotIndex: slotIndex,
-                designId: designId,
-                frameIndex: 1,
-                instanceId: instanceId,
-                isAnimating: false
-            )
-            entries.append(resetEntry)
-        }
+        let resetDate = actualStartTime.addingTimeInterval(Double(totalFrames) * frameInterval + 1.0)
+        let resetEntry = FeaturedWidgetEntry(
+            date: resetDate,
+            slotIndex: slotIndex,
+            designId: designId,
+            frameIndex: 1,
+            instanceId: instanceId,
+            isAnimating: false
+        )
+        entries.append(resetEntry)
         
+        logger.info("🎬 Widget: Generated \(entries.count) timeline entries")
         return entries
     }
 }
@@ -420,40 +458,49 @@ struct DesignFrameView: View {
     private let appGroupManager = AppGroupManager.shared
     
     var body: some View {
-        if let frameImage = loadFrameImage() {
-            Image(uiImage: frameImage)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .ignoresSafeArea(.all)
-        } else if designId == "test01" {
-            // Fallback to bundle asset for test01
-            let imageName = "\(designId)_frame_\(String(format: "%02d", frameIndex))"
-            Image(imageName)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .ignoresSafeArea(.all)
-        } else {
-            // Placeholder for other designs
-            Rectangle()
-                .fill(Color.gray.opacity(0.3))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .ignoresSafeArea(.all)
-                .overlay(
-                    VStack(spacing: 4) {
-                        Text(designId)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.gray)
-                        
-                        Text("Frame \(frameIndex)")
-                            .font(.caption2)
-                            .foregroundColor(.gray)
+        Group {
+            if let frameImage = loadFrameImage() {
+                Image(uiImage: frameImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .ignoresSafeArea(.all)
+                    .onAppear {
+                        widgetLogger.info("✅ Widget View: Successfully displayed image for \(designId) frame \(frameIndex)")
                     }
-                )
+            } else {
+                // Try SwiftUI Image for Assets.xcassets
+                let assetName = "\(designId)_frame_\(String(format: "%02d", frameIndex))"
+                
+                VStack(spacing: 8) {
+                    Image(systemName: "photo")
+                        .font(.system(size: 32))
+                        .foregroundColor(.gray)
+                    
+                    Text(designId)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    
+                    Text("Frame \(frameIndex)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Loading...")
+                        .font(.caption2)
+                        .foregroundColor(.blue)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGray6))
+                .ignoresSafeArea(.all)
+                .onAppear {
+                    widgetLogger.error("❌ Widget View: Failed to load image, showing placeholder for \(designId) frame \(frameIndex)")
+                }
+            }
+        }
+        .onAppear {
+            widgetLogger.info("👀 Widget View: DesignFrameView appeared for \(designId) frame \(frameIndex)")
         }
     }
     
@@ -462,23 +509,87 @@ struct DesignFrameView: View {
         
         // Primary: Try App Group path
         let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: frameIndex)
+        widgetLogger.info("🔍 Widget: Checking App Group path: \(framePath.path)")
         
         if FileManager.default.fileExists(atPath: framePath.path) {
             widgetLogger.info("✅ Widget: Found in App Group: \(framePath.lastPathComponent)")
-            return UIImage(contentsOfFile: framePath.path)
+            if let originalImage = UIImage(contentsOfFile: framePath.path) {
+                // Resize image for widget constraints
+                let resizedImage: UIImage = resizeImageForWidget(originalImage)
+                widgetLogger.info("✅ Widget: Successfully loaded and resized image from App Group")
+                let originalSize: CGSize = originalImage.size
+                let resizedSize: CGSize = resizedImage.size
+                
+                return resizedImage
+            } else {
+                widgetLogger.error("❌ Widget: File exists but failed to load as UIImage")
+            }
         } else {
             widgetLogger.warning("⚠️ Widget: Not found in App Group: \(framePath.lastPathComponent)")
+            widgetLogger.warning("⚠️ Widget: App Group path: \(framePath.path)")
+            
+            // Debug: List contents of parent directory
+            let parentDir = framePath.deletingLastPathComponent()
+            if FileManager.default.fileExists(atPath: parentDir.path) {
+                do {
+                    let contents = try FileManager.default.contentsOfDirectory(atPath: parentDir.path)
+                    widgetLogger.info("📋 Widget: Contents of frames directory: \(contents)")
+                } catch {
+                    widgetLogger.error("❌ Widget: Failed to list frames directory: \(error)")
+                }
+            } else {
+                widgetLogger.warning("⚠️ Widget: Frames directory doesn't exist: \(parentDir.path)")
+            }
         }
         
-        // Fallback: Assets.xcassets (only for specific designs)
-        if designId == "test01" {
-            let imageName = "test01_frame_\(String(format: "%02d", frameIndex))"
-            widgetLogger.info("🎨 Widget: Trying Assets.xcassets fallback: \(imageName)")
-            // Note: Bu SwiftUI Image, UIImage değil - bu kısım View'da handle edilir
+        // Fallback: Try Assets.xcassets with exact naming convention
+        let assetName = "\(designId)_frame_\(String(format: "%02d", frameIndex))"
+        widgetLogger.info("🎨 Widget: Trying Assets.xcassets: \(assetName)")
+        if let bundleImage = UIImage(named: assetName) {
+            let resizedImage: UIImage = resizeImageForWidget(bundleImage)
+            widgetLogger.info("✅ Widget: Found and resized from Assets.xcassets: \(assetName)")
+            return resizedImage
+        } else {
+            widgetLogger.warning("⚠️ Widget: Not found in Assets.xcassets: \(assetName)")
+        }
+        
+        // Alternative fallback: Try generic frame names 
+        let genericAssetName = "frame_\(String(format: "%02d", frameIndex))"
+        widgetLogger.info("🎨 Widget: Trying generic Assets.xcassets: \(genericAssetName)")
+        if let genericImage = UIImage(named: genericAssetName) {
+            let resizedImage: UIImage = resizeImageForWidget(genericImage)
+            widgetLogger.info("✅ Widget: Found and resized generic frame: \(genericAssetName)")
+            return resizedImage
+        } else {
+            widgetLogger.warning("⚠️ Widget: Generic frame not found: \(genericAssetName)")
         }
         
         widgetLogger.error("❌ Widget: No frame found for \(designId) index \(frameIndex)")
         return nil
+    }
+    
+    private func resizeImageForWidget(_ image: UIImage) -> UIImage {
+        // Widget için güvenli maksimum boyut (square widget için)
+        let maxWidgetSize: CGFloat = 300 // 300x300 = 90,000 pixels (well under the limit)
+        
+        let originalSize = image.size
+        
+        // If image is already small enough, return as-is
+        if originalSize.width <= maxWidgetSize && originalSize.height <= maxWidgetSize {
+            return image
+        }
+        
+        // Calculate scale factor to fit within max size while maintaining aspect ratio
+        let scaleFactor = min(maxWidgetSize / originalSize.width, maxWidgetSize / originalSize.height)
+        let newSize = CGSize(width: originalSize.width * scaleFactor, height: originalSize.height * scaleFactor)
+        
+        // Use UIGraphicsImageRenderer for modern image resizing
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resizedImage = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        
+        return resizedImage
     }
     
 //    private func loadFromBundleTestDesigns() -> UIImage? {
