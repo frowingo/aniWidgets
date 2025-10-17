@@ -233,23 +233,23 @@ struct FeaturedWidgetProvider: TimelineProvider {
             if instanceState.isAnimating, let startTime = instanceState.animationStartTime {
                 // Check if animation should still be running
                 let currentDate = Date()
-                let frameInterval: TimeInterval = 0.1 // Match the timeline generation interval - fast animation
-                let totalFrames = 24
-                let animationDuration: TimeInterval = TimeInterval(totalFrames) * frameInterval + 2.0 // 24 frames * 0.1s + 2s buffer = 4.4s total
+                let animationDuration: TimeInterval = 24 * 0.1 + 2.0 // 24 frames * 0.1s + 2s buffer = 4.4s total
                 let animationEndTime = startTime.addingTimeInterval(animationDuration)
                 
                 logger.info("⏰ Widget: Animation check - Start: \(startTime), End: \(animationEndTime), Current: \(currentDate), Duration: \(animationDuration)s")
                 
                 if currentDate < animationEndTime {
-                    // Animation still active
-                    let entries = generateAnimationTimeline(
-                        startTime: startTime,
+                    // Animation still active - create single entry with animation flag
+                    let entry = FeaturedWidgetEntry(
+                        date: Date(),
+                        slotIndex: slotIndex,
                         designId: designId,
+                        frameIndex: 1, // Start frame, internal animation will handle progression
                         instanceId: instanceId,
-                        slotIndex: slotIndex
+                        isAnimating: true
                     )
-                    let timeline = Timeline(entries: entries, policy: .never)
-                    logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with \(entries.count) animation entries")
+                    let timeline = Timeline(entries: [entry], policy: .never)
+                    logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with animation trigger entry")
                     completion(timeline)
                 } else {
                     // Animation finished, reset to static
@@ -368,58 +368,8 @@ struct FeaturedWidgetProvider: TimelineProvider {
             return newInstanceId
         }
     }
-    
-    private func generateAnimationTimeline(
-        startTime: Date,
-        designId: String,
-        instanceId: String,
-        slotIndex: Int
-    ) -> [FeaturedWidgetEntry] {
-        var entries: [FeaturedWidgetEntry] = []
-        let currentDate = Date()
-        let frameInterval: Double = 0.1  // Very fast animation - 0.1 seconds between frames
-        let totalFrames = 24
-        
-        // If animation start time is in the past, start from now
-        let actualStartTime = max(startTime, currentDate)
-        logger.info("🎬 Widget: Animation timeline - originalStart: \(startTime), actualStart: \(actualStartTime), current: \(currentDate), frameInterval: \(frameInterval)s")
-        
-        for i in 1...totalFrames {
-            let entryDate = actualStartTime.addingTimeInterval(Double(i - 1) * frameInterval)
-            let entry = FeaturedWidgetEntry(
-                date: entryDate,
-                slotIndex: slotIndex,
-                designId: designId,
-                frameIndex: i,
-                instanceId: instanceId,
-                isAnimating: true
-            )
-            entries.append(entry)
-            
-            // Log first few entries for debugging
-            if i <= 3 {
-                logger.info("🎬 Widget: Entry \(i) scheduled for \(entryDate) (frame \(i))")
-            }
-        }
-        
-        // Reset entry at the end
-        let resetDate = actualStartTime.addingTimeInterval(Double(totalFrames) * frameInterval + 1.0)
-        let resetEntry = FeaturedWidgetEntry(
-            date: resetDate,
-            slotIndex: slotIndex,
-            designId: designId,
-            frameIndex: 1,
-            instanceId: instanceId,
-            isAnimating: false
-        )
-        entries.append(resetEntry)
-        
-        logger.info("🎬 Widget: Generated \(entries.count) timeline entries")
-        return entries
-    }
 }
 
-// MARK: - Widget Entry
 struct FeaturedWidgetEntry: TimelineEntry {
     let date: Date
     let slotIndex: Int
@@ -427,24 +377,85 @@ struct FeaturedWidgetEntry: TimelineEntry {
     let frameIndex: Int
     let instanceId: String
     let isAnimating: Bool
+    
+    // Add unique identifier for each entry to help SwiftUI detect changes
+    var id: String {
+        return "\(instanceId)_\(frameIndex)_\(Int(date.timeIntervalSince1970))"
+    }
 }
 
-// MARK: - Widget View
 struct FeaturedWidgetView: View {
     let entry: FeaturedWidgetEntry
     let slotIndex: Int
     
+    @State private var currentFrameIndex: Int
+    @State private var animationTimer: Timer?
+    @State private var isInternalAnimating: Bool = false
+    @State private var currentFrameImage: UIImage?
+    @State private var maxFrameCount: Int = 24 // Cache frame count
+    @State private var viewRefreshID = UUID() // Force view recreation
+    
+    // Initialize currentFrameIndex from entry
+    init(entry: FeaturedWidgetEntry, slotIndex: Int) {
+        self.entry = entry
+        self.slotIndex = slotIndex
+        self._currentFrameIndex = State(initialValue: entry.frameIndex)
+    }
+    
     var body: some View {
         ZStack {
             if let designId = entry.designId {
-                // Full-screen design view
-                DesignFrameView(
-                    designId: designId,
-                    frameIndex: entry.frameIndex
-                )
+                // Display current frame image directly - NO FALLBACK!
+                Group {
+                    if let frameImage = currentFrameImage {
+                        Image(uiImage: frameImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                            .ignoresSafeArea(.all)
+                            .id(viewRefreshID) // Bind refresh ID directly to image
+                    } else {
+                        // Show placeholder until first frame loads
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .overlay(
+                                Text("Loading...")
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                            )
+                    }
+                }
                 .onAppear {
                     let currentTime = Date()
-                    widgetLogger.info("🔄 Widget View: Timeline entry loaded - Design: \(designId), Frame: \(entry.frameIndex), EntryDate: \(entry.date), CurrentTime: \(currentTime), IsAnimating: \(entry.isAnimating)")
+                    widgetLogger.info("🔄 Widget View: Timeline entry loaded - Design: \(designId), Frame: \(currentFrameIndex), EntryDate: \(entry.date), CurrentTime: \(currentTime), IsAnimating: \(entry.isAnimating), EntryID: \(entry.id)")
+                    
+                    // Initialize frame count cache
+                    maxFrameCount = getFrameCount(for: designId)
+                    widgetLogger.info("🔢 Cached \(maxFrameCount) frames for design \(designId)")
+                    
+                    // Load initial frame
+                    loadCurrentFrame(designId: designId)
+                    
+                    // Start internal animation if entry indicates animation should be running
+                    if entry.isAnimating && !isInternalAnimating {
+                        startInternalAnimation(designId: designId)
+                    }
+                }
+                .onDisappear {
+                    widgetLogger.info("👋 Widget View: DesignFrameView disappeared for \(designId) frame \(currentFrameIndex)")
+                    stopInternalAnimation()
+                }
+                .onChange(of: currentFrameImage) { newImage in
+                    if newImage != nil {
+                        widgetLogger.info("🎯 SwiftUI: currentFrameImage state updated! Frame \(currentFrameIndex)")
+                    } else {
+                        widgetLogger.info("⚠️ SwiftUI: currentFrameImage became nil")
+                    }
+                }
+                .onChange(of: viewRefreshID) { newID in
+                    widgetLogger.info("🔄 SwiftUI: viewRefreshID changed to \(newID)")
                 }
                 
                 // Invisible button covering entire widget
@@ -459,9 +470,92 @@ struct FeaturedWidgetView: View {
                 EmptySlotView(slotIndex: slotIndex)
             }
         }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .containerBackground(.clear, for: .widget)
+    }
+    
+    private func loadCurrentFrame(designId: String) {
+        let appGroupManager = AppGroupManager.shared
+        let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: currentFrameIndex)
+        
+        widgetLogger.info("🔍 Loading frame: Design=\(designId), Frame=\(currentFrameIndex), Path=\(framePath.path)")
+        widgetLogger.info("🔍 File exists: \(FileManager.default.fileExists(atPath: framePath.path))")
+        
+        if let frameImage = UIImage(contentsOfFile: framePath.path) {
+            let previousImageHash = currentFrameImage?.hash ?? 0
+            currentFrameImage = resizeImageForWidget(frameImage)
+            let newImageHash = currentFrameImage?.hash ?? 0
+            
+            widgetLogger.info("✅ Loaded frame \(currentFrameIndex) for \(designId) - Image size: \(String(describing: frameImage.size))")
+            widgetLogger.info("🖼️ currentFrameImage assigned successfully - Hash changed: \(previousImageHash) → \(newImageHash)")
+            widgetLogger.info("🔄 Image objects different: \(previousImageHash != newImageHash)")
+        } else {
+            widgetLogger.error("❌ Failed to load frame \(currentFrameIndex) for \(designId) from path: \(framePath.path)")
+        }
+    }
+    
+    private func resizeImageForWidget(_ image: UIImage) -> UIImage {
+        let targetSize = CGSize(width: 300, height: 300) // Smaller widget size to avoid archival limit
+        widgetLogger.info("🔄 Resizing image from \(String(describing: image.size)) to \(String(describing: targetSize))")
+        UIGraphicsBeginImageContextWithOptions(targetSize, false, 0.0)
+        image.draw(in: CGRect(origin: .zero, size: targetSize))
+        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        let finalImage = resizedImage ?? image
+        widgetLogger.info("✅ Image resized successfully to \(String(describing: finalImage.size))")
+        return finalImage
+    }
+    
+    private func startInternalAnimation(designId: String) {
+        widgetLogger.info("🎬 Starting internal animation for \(designId) from frame \(currentFrameIndex)")
+        isInternalAnimating = true
+        // DON'T reset to 1 - use current frame from entry!
+        // currentFrameIndex already initialized from entry.frameIndex
+        
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+            DispatchQueue.main.async {
+                self.currentFrameIndex += 1
+                widgetLogger.info("🔄 Internal Animation: Frame \(self.currentFrameIndex) for \(designId)")
+                
+                if self.currentFrameIndex > self.maxFrameCount {
+                    widgetLogger.info("🎬 Internal Animation: Completed cycle for \(designId) (max frames: \(self.maxFrameCount))")
+                    self.currentFrameIndex = 1 // Reset to first frame
+                    self.stopInternalAnimation() // Stop after one cycle
+                } else {
+                    // Load new frame and force view refresh
+                    self.loadCurrentFrame(designId: designId)
+                    // ViewRefreshID is bound to the Image directly via .id() modifier
+                    self.viewRefreshID = UUID() // This will trigger image recreation
+                    widgetLogger.info("🔄 Forced view refresh with new UUID: \(self.viewRefreshID)")
+                }
+            }
+        }
+    }
+    
+    private func stopInternalAnimation() {
+        widgetLogger.info("🛑 Stopping internal animation")
+        animationTimer?.invalidate()
+        animationTimer = nil
+        isInternalAnimating = false
+    }
+    
+    private func getFrameCount(for designId: String) -> Int {
+        // Try to get frame count from App Group or return default
+        let appGroupManager = AppGroupManager.shared
+        
+        // Check how many frames actually exist for this design
+        var frameCount = 1
+        for i in 1...30 { // Check up to 30 frames
+            let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: i)
+            if FileManager.default.fileExists(atPath: framePath.path) {
+                frameCount = i
+            } else {
+                break
+            }
+        }
+        
+        return frameCount
     }
 }
 
@@ -483,6 +577,10 @@ struct DesignFrameView: View {
                         let currentTime = Date()
                         widgetLogger.info("✅ Widget View: Successfully displayed image for \(designId) frame \(frameIndex) at \(currentTime)")
                         widgetLogger.info("👀 Widget View: DesignFrameView appeared for \(designId) frame \(frameIndex)")
+                        widgetLogger.info("🖼️ Widget View: Frame image loaded successfully - DesignID: \(designId), FrameIndex: \(frameIndex)")
+                    }
+                    .onDisappear {
+                        widgetLogger.info("👋 Widget View: DesignFrameView disappeared for \(designId) frame \(frameIndex)")
                     }
             } else {
                 // Try SwiftUI Image for Assets.xcassets
@@ -670,12 +768,41 @@ struct StartAnimationIntent: AppIntent {
         let success = instanceManager.startAnimation(for: instanceId)
         
         if success {
-            WidgetCenter.shared.reloadAllTimelines()
-            widgetLogger.info("✅ Animation started for instance: \(instanceId)")
+            // Only reload the specific widget timeline, not all timelines
+            // Find which widget kind this instance belongs to
+            if let widgetKind = getWidgetKind(for: instanceId) {
+                WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+                widgetLogger.info("✅ Animation started for instance: \(instanceId) - Reloaded: \(widgetKind)")
+            } else {
+                // Fallback to reload all if we can't determine the specific widget
+                WidgetCenter.shared.reloadAllTimelines()
+                widgetLogger.info("✅ Animation started for instance: \(instanceId) - Reloaded all (fallback)")
+            }
         } else {
             widgetLogger.error("❌ Failed to start animation for instance: \(instanceId)")
         }
         
         return .result()
+    }
+    
+    private func getWidgetKind(for instanceId: String) -> String? {
+        // Check UserDefaults to find which slot this instance belongs to
+        let appGroupManager = AppGroupManager.shared
+        let userDefaults = UserDefaults(suiteName: appGroupManager.appGroupId)
+        
+        let slotKeys = [
+            "widget_slot_0_instance": "FeaturedWidgetSlotA",
+            "widget_slot_1_instance": "FeaturedWidgetSlotB", 
+            "widget_slot_2_instance": "FeaturedWidgetSlotC",
+            "widget_slot_3_instance": "FeaturedWidgetSlotD"
+        ]
+        
+        for (key, widgetKind) in slotKeys {
+            if userDefaults?.string(forKey: key) == instanceId {
+                return widgetKind
+            }
+        }
+        
+        return nil
     }
 }
