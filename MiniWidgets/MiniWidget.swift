@@ -233,8 +233,12 @@ struct FeaturedWidgetProvider: TimelineProvider {
             if instanceState.isAnimating, let startTime = instanceState.animationStartTime {
                 // Check if animation should still be running
                 let currentDate = Date()
-                let animationDuration: TimeInterval = 24 * 0.5 + 1.0 // 24 frames * 0.5s + 1s buffer
+                let frameInterval: TimeInterval = 0.1 // Match the timeline generation interval - fast animation
+                let totalFrames = 24
+                let animationDuration: TimeInterval = TimeInterval(totalFrames) * frameInterval + 2.0 // 24 frames * 0.1s + 2s buffer = 4.4s total
                 let animationEndTime = startTime.addingTimeInterval(animationDuration)
+                
+                logger.info("⏰ Widget: Animation check - Start: \(startTime), End: \(animationEndTime), Current: \(currentDate), Duration: \(animationDuration)s")
                 
                 if currentDate < animationEndTime {
                     // Animation still active
@@ -244,7 +248,7 @@ struct FeaturedWidgetProvider: TimelineProvider {
                         instanceId: instanceId,
                         slotIndex: slotIndex
                     )
-                    let timeline = Timeline(entries: entries, policy: .atEnd)
+                    let timeline = Timeline(entries: entries, policy: .never)
                     logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with \(entries.count) animation entries")
                     completion(timeline)
                 } else {
@@ -373,12 +377,12 @@ struct FeaturedWidgetProvider: TimelineProvider {
     ) -> [FeaturedWidgetEntry] {
         var entries: [FeaturedWidgetEntry] = []
         let currentDate = Date()
-        let frameInterval: Double = 0.5
+        let frameInterval: Double = 0.1  // Very fast animation - 0.1 seconds between frames
         let totalFrames = 24
         
         // If animation start time is in the past, start from now
         let actualStartTime = max(startTime, currentDate)
-        logger.info("🎬 Widget: Animation timeline - originalStart: \(startTime), actualStart: \(actualStartTime), current: \(currentDate)")
+        logger.info("🎬 Widget: Animation timeline - originalStart: \(startTime), actualStart: \(actualStartTime), current: \(currentDate), frameInterval: \(frameInterval)s")
         
         for i in 1...totalFrames {
             let entryDate = actualStartTime.addingTimeInterval(Double(i - 1) * frameInterval)
@@ -391,6 +395,11 @@ struct FeaturedWidgetProvider: TimelineProvider {
                 isAnimating: true
             )
             entries.append(entry)
+            
+            // Log first few entries for debugging
+            if i <= 3 {
+                logger.info("🎬 Widget: Entry \(i) scheduled for \(entryDate) (frame \(i))")
+            }
         }
         
         // Reset entry at the end
@@ -433,6 +442,10 @@ struct FeaturedWidgetView: View {
                     designId: designId,
                     frameIndex: entry.frameIndex
                 )
+                .onAppear {
+                    let currentTime = Date()
+                    widgetLogger.info("🔄 Widget View: Timeline entry loaded - Design: \(designId), Frame: \(entry.frameIndex), EntryDate: \(entry.date), CurrentTime: \(currentTime), IsAnimating: \(entry.isAnimating)")
+                }
                 
                 // Invisible button covering entire widget
                 Button(intent: StartAnimationIntent(instanceId: entry.instanceId)) {
@@ -467,7 +480,9 @@ struct DesignFrameView: View {
                     .clipped()
                     .ignoresSafeArea(.all)
                     .onAppear {
-                        widgetLogger.info("✅ Widget View: Successfully displayed image for \(designId) frame \(frameIndex)")
+                        let currentTime = Date()
+                        widgetLogger.info("✅ Widget View: Successfully displayed image for \(designId) frame \(frameIndex) at \(currentTime)")
+                        widgetLogger.info("👀 Widget View: DesignFrameView appeared for \(designId) frame \(frameIndex)")
                     }
             } else {
                 // Try SwiftUI Image for Assets.xcassets
