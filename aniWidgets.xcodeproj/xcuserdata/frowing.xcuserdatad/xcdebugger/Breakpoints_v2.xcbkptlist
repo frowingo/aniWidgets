@@ -30,8 +30,8 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "423"
             endingLineNumber = "423"
-            landmarkName = "body"
-            landmarkType = "24">
+            landmarkName = "FeaturedWidgetEntry"
+            landmarkType = "14">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -46,7 +46,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "306"
             endingLineNumber = "306"
-            landmarkName = "getFeaturedDesignId(for:)"
+            landmarkName = "getTimeline(in:completion:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

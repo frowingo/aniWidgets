@@ -227,22 +227,33 @@ class DesignManager: ObservableObject {
         do {
             try appGroupManager.saveData(self.featuredConfig, to: appGroupManager.featuredConfigPath)
 
-            // 👇 Eklenen kısım: featured olan tasarımların frame'lerini App Group'a kopyala
+            // 👇 Frame'leri App Group'a kopyala
             if let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil) {
+                logger.info("📁 TestDesigns path found: \(testDesignsPath)")
+                
                 for id in self.featuredConfig.designs {
                     if let design = self.getDesign(by: id) {
                         let designBundlePath = "\(testDesignsPath)/\(design.id)"
+                        logger.info("🔄 Attempting to copy frames for design: \(design.id) from \(designBundlePath)")
+                        
                         do {
                             try self.appGroupManager.copyFramesToAppGroup(for: design, from: designBundlePath)
+                            logger.info("✅ Successfully copied frames for \(design.id)")
+                            
+                            // Verify frames were copied
+                            let isVerified = self.appGroupManager.verifyDesignFrames(for: design.id)
+                            logger.info("🔍 Frame verification for \(design.id): \(isVerified)")
                         } catch {
-                            self.logger.error("Failed to copy frames for \(design.id): \(error.localizedDescription)")
+                            self.logger.error("❌ Failed to copy frames for \(design.id): \(error.localizedDescription)")
                         }
+                    } else {
+                        logger.warning("⚠️ Design not found: \(id)")
                     }
                 }
             } else {
-                self.logger.error("TestDesigns path not found in bundle; cannot copy frames to App Group.")
+                self.logger.error("❌ TestDesigns path not found in bundle; cannot copy frames to App Group.")
             }
-            // ☝️ Eklenen kısım bitti
+            
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
             logger.error("Failed to save featured config: \(error.localizedDescription)")
@@ -332,6 +343,32 @@ class DesignManager: ObservableObject {
         // Check if design exists in App Group directory
         let designDir = appGroupManager.designDirectory(for: designId)
         return FileManager.default.fileExists(atPath: designDir.path)
+    }
+    
+    // Debug function to check App Group state
+    func debugAppGroupState() {
+        logger.info("🔍 Debug: App Group Directory Structure")
+        logger.info("📁 App Group root: \(self.appGroupManager.appGroupDirectory.path)")
+        logger.info("📁 Designs directory: \(self.appGroupManager.designsDirectory.path)")
+        logger.info("📁 State directory: \(self.appGroupManager.stateDirectory.path)")
+        
+        do {
+            let designContents = try FileManager.default.contentsOfDirectory(at: appGroupManager.designsDirectory, includingPropertiesForKeys: nil)
+            logger.info("📋 Found \(designContents.count) design directories:")
+            for designDir in designContents {
+                logger.info("   - \(designDir.lastPathComponent)")
+                
+                let framesDir = appGroupManager.designFramesDirectory(for: designDir.lastPathComponent)
+                if FileManager.default.fileExists(atPath: framesDir.path) {
+                    let frames = try? FileManager.default.contentsOfDirectory(atPath: framesDir.path)
+                    logger.info("     📸 Frames: \(frames?.count ?? 0)")
+                } else {
+                    logger.warning("     ⚠️ No frames directory")
+                }
+            }
+        } catch {
+            logger.error("❌ Failed to read designs directory: \(error)")
+        }
     }
 }
 
