@@ -28,25 +28,9 @@
             filePath = "MiniWidgets/MiniWidget.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "422"
-            endingLineNumber = "422"
-            landmarkName = "body"
-            landmarkType = "24">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "754017DB-1381-44E2-868B-4964CEB626BE"
-            shouldBeEnabled = "No"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "MiniWidgets/MiniWidget.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "306"
-            endingLineNumber = "306"
-            landmarkName = "getTimeline(in:completion:)"
+            startingLineNumber = "380"
+            endingLineNumber = "380"
+            landmarkName = "getFeaturedDesignId(for:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
@@ -108,10 +92,10 @@
             filePath = "aniWidgets/Services/DesignManager.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "205"
-            endingLineNumber = "205"
-            landmarkName = "loadFeaturedConfig()"
-            landmarkType = "7">
+            startingLineNumber = "198"
+            endingLineNumber = "198"
+            landmarkName = "DesignManager"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

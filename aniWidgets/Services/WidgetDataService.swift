@@ -60,10 +60,7 @@ class WidgetDataService: ObservableObject {
             // Reload widget
             WidgetCenter.shared.reloadTimelines(ofKind: SharedConstants.widgetKind)
             
-            logger.info("Successfully updated widget with design: \(design.name)")
-            
         } catch {
-            logger.error("Failed to update widget design: \(error.localizedDescription)")
         }
         
         isLoading = false
@@ -74,13 +71,11 @@ class WidgetDataService: ObservableObject {
             // Load from App Group if exists
             if appStore.fileExists(SharedConstants.availableDesignsFile) {
                 availableDesigns = try appStore.readJSON([AnimationDesign].self, from: SharedConstants.availableDesignsFile)
-                logger.info("Loaded \(availableDesigns.count) designs from App Group")
             } else {
                 // Generate sample designs and save
                 await generateSampleDesigns()
             }
         } catch {
-            logger.error("Failed to load available designs: \(error.localizedDescription)")
             await generateSampleDesigns()
         }
     }
@@ -91,10 +86,8 @@ class WidgetDataService: ObservableObject {
                 let widgetEntry = try appStore.readJSON(WidgetEntry.self, from: SharedConstants.currentWidgetDataFile)
                 currentDesign = availableDesigns.first { $0.id == widgetEntry.id }
                 lastUpdateDate = widgetEntry.lastUpdated
-                logger.info("Loaded current design: \(currentDesign?.name ?? "Unknown")")
             }
         } catch {
-            logger.error("Failed to load current design: \(error.localizedDescription)")
         }
     }
     
@@ -115,7 +108,6 @@ class WidgetDataService: ObservableObject {
         WidgetCenter.shared.reloadTimelines(ofKind: SharedConstants.widgetKind)
         
         isLoading = false
-        logger.info("Data refresh completed")
     }
     
     // MARK: - Private Methods
@@ -148,9 +140,7 @@ class WidgetDataService: ObservableObject {
         do {
             availableDesigns = sampleDesigns
             try appStore.writeJSON(sampleDesigns, to: SharedConstants.availableDesignsFile)
-            logger.info("Generated and saved \(sampleDesigns.count) sample designs")
         } catch {
-            logger.error("Failed to save sample designs: \(error.localizedDescription)")
         }
     }
     
