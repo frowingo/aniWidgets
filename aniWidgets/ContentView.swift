@@ -7,6 +7,7 @@ struct ContentView: View {
     var body: some View {
         
         FeaturedDesignsView()
+            .preferredColorScheme(.light) // Force light mode
         
     }
     

@@ -31,6 +31,7 @@ struct FeaturedDesignsView: View {
             }
         }
         .animation(.easeInOut(duration: 0.6), value: showSaveToast)
+        .preferredColorScheme(.light) // Force light mode
     }
     
     private var backgroundGradient: some View {
