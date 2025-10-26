@@ -65,7 +65,6 @@ struct WidgetInstanceManager {
     
     func startAnimation(for instanceId: String) -> Bool {
         guard var state = loadInstanceState(instanceId) else { return false }
-        print(state.designId + " - " + state.isAnimating.description)
         state.isAnimating = true
         state.animationStartTime = Date()
         
@@ -217,135 +216,22 @@ struct FeaturedWidgetProvider: TimelineProvider {
         
         if let instanceState = instanceManager.loadInstanceState(instanceId) {
             
-            if instanceState.isAnimating, let startTime = instanceState.animationStartTime {
-                // Check if animation should still be running
-                let currentDate = Date()
-                let frameCount = getFrameCount(for: designId)
-                let animationDuration: TimeInterval = Double(frameCount) * 0.1 // frames * 0.1s
-                let animationEndTime = startTime.addingTimeInterval(animationDuration)
-                
-                
-                if currentDate < animationEndTime {
-                    
-                    var entries: [FeaturedWidgetEntry] = []
-                    let frameInterval: TimeInterval = 0.1
-                    
-                    // Get actual frame count for this design
-                    let frameCount = getFrameCount(for: designId)
-                    
-                    // Safety check for frame count
-                    if frameCount <= 0 {
-                        let staticEntry = FeaturedWidgetEntry(
-                            date: Date(),
-                            slotIndex: slotIndex,
-                            designId: designId,
-                            frameIndex: 1,
-                            instanceId: instanceId,
-                            isAnimating: false
-                        )
-                        let timeline = Timeline(entries: [staticEntry], policy: .after(Date().addingTimeInterval(300)))
-                        completion(timeline)
-                        return
-                    }
-                    
-                    // Calculate current frame based on elapsed time
-                    let elapsedTime = currentDate.timeIntervalSince(startTime)
-                    let currentFrameFloat = elapsedTime / frameInterval
-                    let currentFrameIndex = min(Int(currentFrameFloat) + 1, frameCount)
-                    
-                    // Add immediate entry for current state
-                    let immediateEntry = FeaturedWidgetEntry(
-                        date: currentDate,
-                        slotIndex: slotIndex,
-                        designId: designId,
-                        frameIndex: currentFrameIndex,
-                        instanceId: instanceId,
-                        isAnimating: true
-                    )
-                    entries.append(immediateEntry)
-                    
-                    // Create entries for remaining frames (only if there are remaining frames)
-                    if currentFrameIndex < frameCount {
-                        for frameIndex in (currentFrameIndex + 1)...frameCount {
-                            let frameTime = TimeInterval(frameIndex - currentFrameIndex) * frameInterval
-                            let frameDate = currentDate.addingTimeInterval(frameTime)
-                            
-                            let entry = FeaturedWidgetEntry(
-                                date: frameDate,
-                                slotIndex: slotIndex,
-                                designId: designId,
-                                frameIndex: frameIndex,
-                                instanceId: instanceId,
-                                isAnimating: true
-                            )
-                            entries.append(entry)
-                        }
-                        
-                        // Add final static entry
-                        let finalDate = currentDate.addingTimeInterval(TimeInterval(frameCount - currentFrameIndex) * frameInterval + 0.5)
-                        let finalEntry = FeaturedWidgetEntry(
-                            date: finalDate,
-                            slotIndex: slotIndex,
-                            designId: designId,
-                            frameIndex: 1,
-                            instanceId: instanceId,
-                            isAnimating: false
-                        )
-                        entries.append(finalEntry)
-                    } else {
-                        let staticEntry = FeaturedWidgetEntry(
-                            date: currentDate.addingTimeInterval(0.1),
-                            slotIndex: slotIndex,
-                            designId: designId,
-                            frameIndex: 1,
-                            instanceId: instanceId,
-                            isAnimating: false
-                        )
-                        entries.append(staticEntry)
-                    }
-                    
-                    let timeline = Timeline(entries: entries, policy: .atEnd)
-                    completion(timeline)
-                } else {
-                    // Animation finished, reset to static
-                    var updatedState = instanceState
-                    updatedState.isAnimating = false
-                    updatedState.animationStartTime = nil
-                    updatedState.currentFrame = 1
-                    
-                    // Save updated state
-                    do {
-                        let statePath = appGroupManager.instanceStatePath(for: instanceId)
-                        let data = try JSONEncoder().encode(updatedState)
-                        try data.write(to: statePath)
-                    } catch {
-                    }
-                    
-                    // Create static entry
-                    let entry = FeaturedWidgetEntry(
-                        date: Date(),
-                        slotIndex: slotIndex,
-                        designId: designId,
-                        frameIndex: 1,
-                        instanceId: instanceId,
-                        isAnimating: false
-                    )
-                    let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300)))
-                    completion(timeline)
-                }
-            } else {
-                // Static entry
-                let entry = FeaturedWidgetEntry(
-                    date: Date(),
-                    slotIndex: slotIndex,
-                    designId: designId,
-                    frameIndex: instanceState.currentFrame,
-                    instanceId: instanceId,
-                    isAnimating: false
-                )
-                let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300))) // Refresh in 5 minutes
-                completion(timeline)
-            }
+            // Simple frame-based animation system (like the old working system)
+            let frameIndex = getNextFrameForWidget(instanceId: instanceId, designId: designId)
+            
+            let entry = FeaturedWidgetEntry(
+                date: Date(),
+                slotIndex: slotIndex,
+                designId: designId,
+                frameIndex: frameIndex,
+                instanceId: instanceId,
+                isAnimating: instanceState.isAnimating
+            )
+            
+            // Use simple refresh policy - if animating, refresh quickly; if not, refresh slowly
+            let refreshInterval = instanceState.isAnimating ? 0.15 : 300.0
+            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(refreshInterval)))
+            completion(timeline)
         } else {
             // Create new instance
             let newInstanceId = instanceManager.createInstance(designId: designId)
@@ -397,6 +283,20 @@ struct FeaturedWidgetProvider: TimelineProvider {
         let userDefaults = UserDefaults(suiteName: appGroupManager.appGroupId)
         
         if let existingInstanceId = userDefaults?.string(forKey: instanceKey) {
+            // Mevcut instance'ın designId'sini kontrol et ve gerekirse güncelle
+            let instanceManager = WidgetInstanceManager()
+            if var existingState = instanceManager.loadInstanceState(existingInstanceId) {
+                if existingState.designId != designId {
+                    
+                    existingState.designId = designId
+                    do {
+                        let statePath = appGroupManager.instanceStatePath(for: existingInstanceId)
+                        let data = try JSONEncoder().encode(existingState)
+                        try data.write(to: statePath)
+                    } catch {
+                    }
+                }
+            }
             return existingInstanceId
         } else {
             let newInstanceId = WidgetInstanceManager().createInstance(designId: designId)
@@ -411,10 +311,9 @@ struct FeaturedWidgetProvider: TimelineProvider {
             return 1
         }
         
-        // Check how many frames actually exist for this design
-        var frameCount = 0 // Start from 0 to ensure we find at least one frame
-        for i in 1...30 { // Check up to 30 frames (1-based counting)
-            let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: i - 1) // frameImagePath expects 0-based
+        var frameCount = 0
+        for i in 1...60 {
+            let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: i)
             if FileManager.default.fileExists(atPath: framePath.path) {
                 frameCount = i
             } else {
@@ -425,6 +324,35 @@ struct FeaturedWidgetProvider: TimelineProvider {
         // Ensure at least 1 frame (fallback)
         let finalFrameCount = max(frameCount, 1)
         return finalFrameCount
+    }
+    
+    private func getNextFrameForWidget(instanceId: String, designId: String) -> Int {
+        let instanceManager = WidgetInstanceManager()
+        
+        if let state = instanceManager.loadInstanceState(instanceId) {
+            if state.isAnimating {
+                let totalFrames = getFrameCount(for: designId)
+                let nextFrame = (state.currentFrame % totalFrames) + 1
+                
+                // Update instance state with next frame
+                var updatedState = state
+                updatedState.currentFrame = nextFrame
+                
+                do {
+                    let statePath = appGroupManager.instanceStatePath(for: instanceId)
+                    let data = try JSONEncoder().encode(updatedState)
+                    try data.write(to: statePath)
+                } catch {
+                    // Continue with current frame on error
+                }
+                
+                return nextFrame
+            } else {
+                return state.currentFrame
+            }
+        }
+        
+        return 1 // Default first frame
     }
 }
 
