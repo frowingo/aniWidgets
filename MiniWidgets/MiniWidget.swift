@@ -64,8 +64,18 @@ struct WidgetInstanceManager {
     }
     
     func startAnimation(for instanceId: String) -> Bool {
-        guard var state = loadInstanceState(instanceId) else { return false }
+        guard var state = loadInstanceState(instanceId) else {
+            return false 
+        }
+        
+        // If already animating, ignore this request
+        if state.isAnimating {
+            return false
+        }
+        
+        // Reset animation to start from frame 1
         state.isAnimating = true
+        state.currentFrame = 1
         state.animationStartTime = Date()
         
         do {
@@ -216,8 +226,11 @@ struct FeaturedWidgetProvider: TimelineProvider {
         
         if let instanceState = instanceManager.loadInstanceState(instanceId) {
             
-            // Simple frame-based animation system (like the old working system)
+            // Simple frame-based animation system 
             let frameIndex = getNextFrameForWidget(instanceId: instanceId, designId: designId)
+            
+            // Re-load instance state after frame update to get current isAnimating status
+            let updatedInstanceState = instanceManager.loadInstanceState(instanceId) ?? instanceState
             
             let entry = FeaturedWidgetEntry(
                 date: Date(),
@@ -225,12 +238,53 @@ struct FeaturedWidgetProvider: TimelineProvider {
                 designId: designId,
                 frameIndex: frameIndex,
                 instanceId: instanceId,
-                isAnimating: instanceState.isAnimating
+                isAnimating: updatedInstanceState.isAnimating
             )
             
-            // Use simple refresh policy - if animating, refresh quickly; if not, refresh slowly
-            let refreshInterval = instanceState.isAnimating ? 0.15 : 300.0
-            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(refreshInterval)))
+            // Use hybrid manual chain for animation
+            let timeline: Timeline<FeaturedWidgetEntry>
+            
+            if updatedInstanceState.isAnimating {
+                let totalFrames = getFrameCount(for: designId)
+                
+                // Check if we need to continue animation
+                if frameIndex < totalFrames {
+                    // Schedule next frame reload manually after 0.15 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        
+                        // getWidgetKind()
+                        let appGroupManager = AppGroupManager.shared
+                        let userDefaults = UserDefaults(suiteName: appGroupManager.appGroupId)
+                        
+                        let slotKeys = [
+                            "widget_slot_0_instance": "FeaturedWidgetSlotA",
+                            "widget_slot_1_instance": "FeaturedWidgetSlotB", 
+                            "widget_slot_2_instance": "FeaturedWidgetSlotC",
+                            "widget_slot_3_instance": "FeaturedWidgetSlotD"
+                        ]
+                        
+                        var targetWidgetKind: String?
+                        for (key, widgetKind) in slotKeys {
+                            let storedInstanceId = userDefaults?.string(forKey: key)
+                            if storedInstanceId == instanceId {
+                                targetWidgetKind = widgetKind
+                                break
+                            }
+                        }
+                        
+                        if let widgetKind = targetWidgetKind {
+                            WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+                        }
+                    }
+                }
+                
+                // Create timeline with .never policy (manual reload handles timing)
+                timeline = Timeline(entries: [entry], policy: .never)
+            } else {
+                // Animation stopped - no more reloads
+                timeline = Timeline(entries: [entry], policy: .never)
+            }
+            
             completion(timeline)
         } else {
             // Create new instance
@@ -244,7 +298,7 @@ struct FeaturedWidgetProvider: TimelineProvider {
                 instanceId: newInstanceId,
                 isAnimating: false
             )
-            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300))) // Refresh in 5 minutes
+            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300)))
             completion(timeline)
         }
     }
@@ -332,9 +386,25 @@ struct FeaturedWidgetProvider: TimelineProvider {
         if let state = instanceManager.loadInstanceState(instanceId) {
             if state.isAnimating {
                 let totalFrames = getFrameCount(for: designId)
-                let nextFrame = (state.currentFrame % totalFrames) + 1
                 
-                // Update instance state with next frame
+                // If we've shown all frames, stop animation and stay on first frame
+                if state.currentFrame >= totalFrames {
+                    var updatedState = state
+                    updatedState.isAnimating = false
+                    updatedState.currentFrame = 1
+                    
+                    do {
+                        let statePath = appGroupManager.instanceStatePath(for: instanceId)
+                        let data = try JSONEncoder().encode(updatedState)
+                        try data.write(to: statePath)
+                    } catch {
+                    }
+                    
+                    return 1
+                }
+                
+                let nextFrame = state.currentFrame + 1
+                
                 var updatedState = state
                 updatedState.currentFrame = nextFrame
                 
@@ -343,7 +413,6 @@ struct FeaturedWidgetProvider: TimelineProvider {
                     let data = try JSONEncoder().encode(updatedState)
                     try data.write(to: statePath)
                 } catch {
-                    // Continue with current frame on error
                 }
                 
                 return nextFrame
@@ -394,6 +463,8 @@ struct FeaturedWidgetView: View {
                     Color.clear
                 }
                 .buttonStyle(.plain)
+                .background(Color.clear)
+                .foregroundColor(.clear)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
             } else {
@@ -560,19 +631,32 @@ struct StartAnimationIntent: AppIntent {
     
     func perform() async throws -> some IntentResult {
         
-        let instanceManager = WidgetInstanceManager()
-        let success = instanceManager.startAnimation(for: instanceId)
+        // Directly use the widget extension's instance manager
+        let widgetManager = WidgetInstanceManager()
         
-        
-        if success {
-            // Only reload the specific widget timeline, not all timelines
-            if let widgetKind = getWidgetKind(for: instanceId) {
-                WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
-            } else {
-                // Fallback to reload all if we can't determine the specific widget
-                WidgetCenter.shared.reloadAllTimelines()
+        // Manually trigger animation by setting state and reloading timeline
+        if var state = widgetManager.loadInstanceState(instanceId) {
+            if !state.isAnimating {
+                state.isAnimating = true
+                state.currentFrame = 1
+                state.animationStartTime = Date()
+                
+                // Save updated state
+                do {
+                    let appGroupManager = AppGroupManager.shared
+                    let statePath = appGroupManager.instanceStatePath(for: instanceId)
+                    let data = try JSONEncoder().encode(state)
+                    try data.write(to: statePath)
+                    
+                    // Reload only the specific widget that was tapped
+                    if let widgetKind = getWidgetKind(for: instanceId) {
+                        WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+                    } else {
+                        WidgetCenter.shared.reloadAllTimelines() // Fallback
+                    }
+                } catch {
+                }
             }
-        } else {
         }
         
         return .result()
