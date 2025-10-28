@@ -65,7 +65,7 @@ struct WidgetInstanceManager {
     
     func startAnimation(for instanceId: String) -> Bool {
         guard var state = loadInstanceState(instanceId) else {
-            return false 
+            return false
         }
         
         // If already animating, ignore this request
@@ -226,7 +226,7 @@ struct FeaturedWidgetProvider: TimelineProvider {
         
         if let instanceState = instanceManager.loadInstanceState(instanceId) {
             
-            // Simple frame-based animation system 
+            // Simple frame-based animation system
             let frameIndex = getNextFrameForWidget(instanceId: instanceId, designId: designId)
             
             // Re-load instance state after frame update to get current isAnimating status
@@ -258,7 +258,7 @@ struct FeaturedWidgetProvider: TimelineProvider {
                         
                         let slotKeys = [
                             "widget_slot_0_instance": "FeaturedWidgetSlotA",
-                            "widget_slot_1_instance": "FeaturedWidgetSlotB", 
+                            "widget_slot_1_instance": "FeaturedWidgetSlotB",
                             "widget_slot_2_instance": "FeaturedWidgetSlotC",
                             "widget_slot_3_instance": "FeaturedWidgetSlotD"
                         ]
@@ -445,7 +445,7 @@ struct FeaturedWidgetView: View {
     
     // Remove internal state - use only timeline entry data
     
-    // Initialize from entry only 
+    // Initialize from entry only
     init(entry: FeaturedWidgetEntry, slotIndex: Int) {
         self.entry = entry
         self.slotIndex = slotIndex
@@ -456,15 +456,13 @@ struct FeaturedWidgetView: View {
             if let designId = entry.designId {
                 // Use DesignFrameView with timeline entry data directly - NO INTERNAL STATE!
                 DesignFrameView(designId: designId, frameIndex: entry.frameIndex)
-                    .id(entry.id) // Force view refresh when entry changes
+                    .id(entry.instanceId) // Stable ID per widget instance, not per frame
                 
                 // Invisible button covering entire widget
                 Button(intent: StartAnimationIntent(instanceId: entry.instanceId)) {
                     Color.clear
                 }
-                .buttonStyle(.plain)
-                .background(Color.clear)
-                .foregroundColor(.clear)
+                .buttonStyle(InvisibleButtonStyle())
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
             } else {
@@ -563,7 +561,7 @@ struct DesignFrameView: View {
             return resizedImage
         }
         
-        // Final fallback: Try generic frame names 
+        // Final fallback: Try generic frame names
         let genericAssetName = "frame_\(String(format: "%02d", frameIndex))"
         
         if let genericImage = UIImage(named: genericAssetName) {
@@ -610,6 +608,18 @@ struct EmptySlotView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGray6))
         .ignoresSafeArea(.all)
+    }
+}
+
+// MARK: - Custom Button Style
+struct InvisibleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(1.0) // No scale on press
+            .opacity(1.0)     // No opacity change on press
+            .background(Color.clear)
+            .foregroundColor(Color.clear)
+            .animation(.none, value: configuration.isPressed) // No animation on press
     }
 }
 
@@ -669,7 +679,7 @@ struct StartAnimationIntent: AppIntent {
         
         let slotKeys = [
             "widget_slot_0_instance": "FeaturedWidgetSlotA",
-            "widget_slot_1_instance": "FeaturedWidgetSlotB", 
+            "widget_slot_1_instance": "FeaturedWidgetSlotB",
             "widget_slot_2_instance": "FeaturedWidgetSlotC",
             "widget_slot_3_instance": "FeaturedWidgetSlotD"
         ]
