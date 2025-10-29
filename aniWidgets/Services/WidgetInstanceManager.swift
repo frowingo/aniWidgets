@@ -45,7 +45,6 @@ class WidgetInstanceManager: ObservableObject {
             let path = appGroupManager.instanceStatePath(for: instanceId)
             return try appGroupManager.loadData(WidgetInstanceState.self, from: path)
         } catch {
-            logger.error("Failed to load instance state for \(instanceId): \(error.localizedDescription)")
             return nil
         }
     }
@@ -57,8 +56,6 @@ class WidgetInstanceManager: ObservableObject {
         DispatchQueue.main.async {
             self.activeInstances[state.instanceId] = state
         }
-        
-        logger.info("Saved instance state for \(state.instanceId)")
     }
     
     func createNewInstance(designId: String) -> WidgetInstanceState {
@@ -67,9 +64,7 @@ class WidgetInstanceManager: ObservableObject {
         
         do {
             try saveInstanceState(newState)
-            logger.info("Created new instance \(instanceId) for design \(designId)")
         } catch {
-            logger.error("Failed to save new instance state: \(error.localizedDescription)")
         }
         
         return newState
@@ -77,7 +72,6 @@ class WidgetInstanceManager: ObservableObject {
     
     func updateInstanceFrame(_ instanceId: String, frameIndex: Int) {
         guard let state = activeInstances[instanceId] else {
-            logger.warning("Attempted to update non-existent instance \(instanceId)")
             return
         }
         
@@ -92,13 +86,11 @@ class WidgetInstanceManager: ObservableObject {
         do {
             try saveInstanceState(updatedState)
         } catch {
-            logger.error("Failed to update instance frame: \(error.localizedDescription)")
         }
     }
     
     func toggleInstanceAnimation(_ instanceId: String) {
         guard let state = activeInstances[instanceId] else {
-            logger.warning("Attempted to toggle animation for non-existent instance \(instanceId)")
             return
         }
         
@@ -113,7 +105,6 @@ class WidgetInstanceManager: ObservableObject {
         do {
             try saveInstanceState(updatedState)
         } catch {
-            logger.error("Failed to toggle instance animation: \(error.localizedDescription)")
         }
     }
     
@@ -125,9 +116,7 @@ class WidgetInstanceManager: ObservableObject {
             DispatchQueue.main.async {
                 self.activeInstances.removeValue(forKey: instanceId)
             }
-            logger.info("Deleted instance \(instanceId)")
         } catch {
-            logger.error("Failed to delete instance \(instanceId): \(error.localizedDescription)")
         }
     }
     
@@ -139,7 +128,6 @@ class WidgetInstanceManager: ObservableObject {
         for (instanceId, state) in activeInstances {
             if state.lastUpdateDate < cutoffDate {
                 deleteInstance(instanceId)
-                logger.info("Cleaned up old instance \(instanceId)")
             }
         }
     }
@@ -159,7 +147,6 @@ class WidgetInstanceManager: ObservableObject {
         let instancesDirectory = appGroupManager.appGroupDirectory.appendingPathComponent("State/instances")
         
         guard FileManager.default.fileExists(atPath: instancesDirectory.path) else {
-            logger.info("No instances directory found, starting fresh")
             return
         }
         
@@ -172,9 +159,7 @@ class WidgetInstanceManager: ObservableObject {
                 }
             }
             
-            logger.info("Loaded \(activeInstances.count) existing instances")
         } catch {
-            logger.error("Failed to load existing instances: \(error.localizedDescription)")
         }
     }
 }

@@ -41,7 +41,6 @@ public class AppGroupManager {
     }()
     
     private init() {
-        logger.info("🗂️ AppGroupManager initialized - App Group: \(self.appGroupId)")
         setupDirectoryStructure()
     }
     
@@ -50,7 +49,6 @@ public class AppGroupManager {
         [designsDirectory, stateDirectory, instancesDirectory, configDirectory].forEach { url in
             createDirectoryIfNeeded(url)
         }
-        logger.info("🗂️ Directory structure created")
     }
     
     private func createDirectoryIfNeeded(_ url: URL) {
@@ -59,7 +57,6 @@ public class AppGroupManager {
         do {
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
         } catch {
-            logger.error("❌ Failed to create directory: \(url.path) - \(error.localizedDescription)")
         }
     }
     
@@ -71,8 +68,6 @@ public class AppGroupManager {
         
         let jsonData = try encoder.encode(data)
         try jsonData.write(to: path)
-        
-        logger.info("💾 Saved data to \(path.lastPathComponent)")
     }
     
     public func loadData<T: Codable>(_ type: T.Type, from path: URL) throws -> T {
@@ -82,7 +77,6 @@ public class AppGroupManager {
         decoder.dateDecodingStrategy = .iso8601
         
         let data = try decoder.decode(type, from: jsonData)
-        logger.info("📂 Loaded data from \(path.lastPathComponent)")
         
         return data
     }
@@ -121,7 +115,6 @@ public class AppGroupManager {
         let designDir = designDirectory(for: designId)
         if fileManager.fileExists(atPath: designDir.path) {
             try fileManager.removeItem(at: designDir)
-            logger.info("🗑️ Deleted design: \(designId)")
         }
     }
     
@@ -138,7 +131,6 @@ public class AppGroupManager {
             let designId = designFolder.lastPathComponent
             if !keepingIds.contains(designId) {
                 try fileManager.removeItem(at: designFolder)
-                logger.info("🧹 Cleaned up unused design: \(designId)")
             }
         }
     }
@@ -164,8 +156,6 @@ public class AppGroupManager {
         let designDir = designDirectory(for: design.id)
         let framesDir = designFramesDirectory(for: design.id)
         
-        logger.info("🔄 Copying frames for design: \(design.id)")
-        
         // Copy all frame files
         for frameIndex in 1...design.frameCount {
             let frameName = "\(design.id)_frame_\(String(format: "%02d", frameIndex)).png"
@@ -180,9 +170,7 @@ public class AppGroupManager {
             // Copy frame file
             if fileManager.fileExists(atPath: sourcePath) {
                 try fileManager.copyItem(atPath: sourcePath, toPath: destinationURL.path)
-                logger.info("✅ Copied frame: \(frameName)")
             } else {
-                logger.warning("⚠️ Frame not found: \(sourcePath)")
             }
         }
         
@@ -192,7 +180,6 @@ public class AppGroupManager {
         
         if fileManager.fileExists(atPath: manifestSource) && !fileManager.fileExists(atPath: manifestDest.path) {
             try fileManager.copyItem(atPath: manifestSource, toPath: manifestDest.path)
-            logger.info("✅ Copied manifest for: \(design.id)")
         }
     }
 
@@ -202,16 +189,13 @@ public class AppGroupManager {
         do {
             let contents = try fileManager.contentsOfDirectory(atPath: framesDir.path)
             let frameCount = contents.filter { $0.hasPrefix("\(designId)_frame_") && $0.hasSuffix(".png") }.count
-            logger.info("📊 Design \(designId) has \(frameCount) frames in App Group")
             return frameCount > 0
         } catch {
-            logger.error("❌ Failed to verify frames for \(designId): \(error)")
             return false
         }
     }
 
     public func syncAllDesignsToAppGroup(designs: [AnimationDesign]) async throws {
-        logger.info("🔄 Starting bulk sync of \(designs.count) designs to App Group")
         
         guard let testDesignsPath = Bundle.main.path(forResource: "TestDesigns", ofType: nil) else {
             throw AppGroupError.testDesignsNotFound
@@ -223,18 +207,115 @@ public class AppGroupManager {
             if fileManager.fileExists(atPath: designBundlePath) {
                 do {
                     try copyFramesToAppGroup(for: design, from: designBundlePath)
-                    logger.info("✅ Synced design: \(design.id)")
                 } catch {
-                    logger.error("❌ Failed to sync design \(design.id): \(error)")
                 }
             }
         }
+    }
+
+    // MARK: - Image Loading Operations
+    
+    /// Loads image from App Group directory
+    public func loadImageFromAppGroup(named imageName: String, designFolder: String) -> UIImage? {
+        let imagePath = designFramesDirectory(for: designFolder)
+            .appendingPathComponent("\(designFolder)_\(imageName).png")
         
-        logger.info("🎉 Bulk sync completed")
+        if let image = UIImage(contentsOfFile: imagePath.path) {
+            return image
+        } else {
+            return nil
+        }
+    }
+
+    // MARK: - Widget Bundle Cache Management
+    
+    /// Copies frames from App Group to Widget Bundle for real-time visual updates
+    public func copyFramesToBundle(for designId: String) throws {
+        
+        // Get source frames from App Group
+        let appGroupFramesDir = designFramesDirectory(for: designId)
+        
+        // Target bundle directory (within Widget Extension bundle)
+        guard let bundleFramesDir = getBundleFramesDirectory() else {
+            throw AppGroupError.bundleCacheDirectoryNotFound
+        }
+        
+        let designBundleDir = bundleFramesDir.appendingPathComponent(designId)
+        
+        // Create design directory in bundle cache
+        do {
+            if fileManager.fileExists(atPath: designBundleDir.path) {
+                try fileManager.removeItem(at: designBundleDir)
+            }
+            try fileManager.createDirectory(at: designBundleDir, withIntermediateDirectories: true)
+        } catch {
+            throw AppGroupError.bundleCacheSetupFailed(error.localizedDescription)
+        }
+        
+        // Copy frames from App Group to Bundle cache
+        do {
+            let frameFiles = try fileManager.contentsOfDirectory(at: appGroupFramesDir, includingPropertiesForKeys: nil)
+            let pngFrames = frameFiles.filter { $0.pathExtension.lowercased() == "png" }
+            
+            for frameURL in pngFrames {
+                let targetURL = designBundleDir.appendingPathComponent(frameURL.lastPathComponent)
+                try fileManager.copyItem(at: frameURL, to: targetURL)
+            }
+        } catch {
+            throw AppGroupError.bundleCacheCopyFailed(error.localizedDescription)
+        }
+    }
+    
+    /// Removes frames from Widget Bundle cache when design is unfeatured
+    public func removeFramesFromBundle(for designId: String) throws {
+        
+        guard let bundleFramesDir = getBundleFramesDirectory() else {
+            throw AppGroupError.bundleCacheDirectoryNotFound
+        }
+        
+        let designBundleDir = bundleFramesDir.appendingPathComponent(designId)
+        
+        if fileManager.fileExists(atPath: designBundleDir.path) {
+            do {
+                try fileManager.removeItem(at: designBundleDir)
+            } catch {
+                throw AppGroupError.bundleCacheRemovalFailed(error.localizedDescription)
+            }
+        } else {
+        }
+    }
+    
+    /// Gets the bundle cache directory (shared between main app and widget extension)
+    private func getBundleFramesDirectory() -> URL? {
+        // Use shared app group for bundle cache (accessible by both app and widget)
+        let bundleCacheDir = appGroupDirectory.appendingPathComponent("BundleCache")
+        createDirectoryIfNeeded(bundleCacheDir)
+        return bundleCacheDir
+    }
+    
+    /// Loads image from bundle cache (used by widgets for real-time updates)
+    public func loadImageFromBundleCache(named imageName: String, designFolder: String) -> UIImage? {
+        guard let bundleFramesDir = getBundleFramesDirectory() else {
+            return nil
+        }
+        
+        let imagePath = bundleFramesDir
+            .appendingPathComponent(designFolder)
+            .appendingPathComponent("\(designFolder)_\(imageName).png")
+        
+        if let image = UIImage(contentsOfFile: imagePath.path) {
+            return image
+        } else {
+            return loadImageFromAppGroup(named: imageName, designFolder: designFolder)
+        }
     }
 
     enum AppGroupError: Error {
         case testDesignsNotFound
         case frameCopyFailed(String)
+        case bundleCacheDirectoryNotFound
+        case bundleCacheSetupFailed(String)
+        case bundleCacheCopyFailed(String)
+        case bundleCacheRemovalFailed(String)
     }
 }

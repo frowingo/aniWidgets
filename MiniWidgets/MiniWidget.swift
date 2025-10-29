@@ -64,9 +64,18 @@ struct WidgetInstanceManager {
     }
     
     func startAnimation(for instanceId: String) -> Bool {
-        guard var state = loadInstanceState(instanceId) else { return false }
+        guard var state = loadInstanceState(instanceId) else {
+            return false
+        }
         
+        // If already animating, ignore this request
+        if state.isAnimating {
+            return false
+        }
+        
+        // Reset animation to start from frame 1
         state.isAnimating = true
+        state.currentFrame = 1
         state.animationStartTime = Date()
         
         do {
@@ -189,17 +198,11 @@ struct FeaturedWidgetProvider: TimelineProvider {
     }
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<FeaturedWidgetEntry>) -> ()) {
-        logger.info("📊 Timeline requested for slot \(slotIndex)")
-        
-        // Debug App Group access
-        logger.info("🔍 Widget Debug: App Group ID = \(appGroupManager.appGroupId)")
-        logger.info("🔍 Widget Debug: App Group Directory = \(appGroupManager.appGroupDirectory.path)")
         
         // Try to load from App Group first, then fallback to featured design
         let designId = loadCurrentWidgetDesignId() ?? getFeaturedDesignId(for: slotIndex)
         
         guard let designId = designId else {
-            logger.warning("⚠️ No design found for slot \(slotIndex)")
             // No design for this slot
             let entry = FeaturedWidgetEntry(
                 date: Date(),
@@ -214,94 +217,78 @@ struct FeaturedWidgetProvider: TimelineProvider {
             return
         }
         
-        logger.info("✅ Using design \(designId) for slot \(slotIndex)")
-        
         // Debug: Check if frames exist in App Group
-        let testFramePath = appGroupManager.frameImagePath(for: designId, frameIndex: 1)
-        logger.info("🔍 Widget Debug: Test frame path = \(testFramePath.path)")
-        logger.info("🔍 Widget Debug: Frame exists = \(FileManager.default.fileExists(atPath: testFramePath.path))")
+        _ = appGroupManager.frameImagePath(for: designId, frameIndex: 1)
         
         // Create or get instance for this widget
         let instanceId = getOrCreateInstanceId(for: context, designId: designId)
         let instanceManager = WidgetInstanceManager()
         
-        logger.info("🔍 Widget: Using instance ID: \(instanceId)")
-        
         if let instanceState = instanceManager.loadInstanceState(instanceId) {
-            logger.info("✅ Widget: Loaded existing instance state - frame: \(instanceState.currentFrame), animating: \(instanceState.isAnimating)")
             
-            if instanceState.isAnimating, let startTime = instanceState.animationStartTime {
-                // Check if animation should still be running
-                let currentDate = Date()
-                let frameInterval: TimeInterval = 0.1 // Match the timeline generation interval - fast animation
-                let totalFrames = 24
-                let animationDuration: TimeInterval = TimeInterval(totalFrames) * frameInterval + 2.0 // 24 frames * 0.1s + 2s buffer = 4.4s total
-                let animationEndTime = startTime.addingTimeInterval(animationDuration)
+            // Simple frame-based animation system
+            let frameIndex = getNextFrameForWidget(instanceId: instanceId, designId: designId)
+            
+            // Re-load instance state after frame update to get current isAnimating status
+            let updatedInstanceState = instanceManager.loadInstanceState(instanceId) ?? instanceState
+            
+            let entry = FeaturedWidgetEntry(
+                date: Date(),
+                slotIndex: slotIndex,
+                designId: designId,
+                frameIndex: frameIndex,
+                instanceId: instanceId,
+                isAnimating: updatedInstanceState.isAnimating
+            )
+            
+            // Use hybrid manual chain for animation
+            let timeline: Timeline<FeaturedWidgetEntry>
+            
+            if updatedInstanceState.isAnimating {
+                let totalFrames = getFrameCount(for: designId)
                 
-                logger.info("⏰ Widget: Animation check - Start: \(startTime), End: \(animationEndTime), Current: \(currentDate), Duration: \(animationDuration)s")
-                
-                if currentDate < animationEndTime {
-                    // Animation still active
-                    let entries = generateAnimationTimeline(
-                        startTime: startTime,
-                        designId: designId,
-                        instanceId: instanceId,
-                        slotIndex: slotIndex
-                    )
-                    let timeline = Timeline(entries: entries, policy: .never)
-                    logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with \(entries.count) animation entries")
-                    completion(timeline)
-                } else {
-                    // Animation finished, reset to static
-                    logger.info("⏰ Widget: Animation expired, resetting to static state")
-                    var updatedState = instanceState
-                    updatedState.isAnimating = false
-                    updatedState.animationStartTime = nil
-                    updatedState.currentFrame = 1
-                    
-                    // Save updated state
-                    do {
-                        let statePath = appGroupManager.instanceStatePath(for: instanceId)
-                        let data = try JSONEncoder().encode(updatedState)
-                        try data.write(to: statePath)
-                    } catch {
-                        logger.error("Failed to update instance state: \(error)")
+                // Check if we need to continue animation
+                if frameIndex < totalFrames {
+                    // Schedule next frame reload manually after 0.15 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        
+                        // getWidgetKind()
+                        let appGroupManager = AppGroupManager.shared
+                        let userDefaults = UserDefaults(suiteName: appGroupManager.appGroupId)
+                        
+                        let slotKeys = [
+                            "widget_slot_0_instance": "FeaturedWidgetSlotA",
+                            "widget_slot_1_instance": "FeaturedWidgetSlotB",
+                            "widget_slot_2_instance": "FeaturedWidgetSlotC",
+                            "widget_slot_3_instance": "FeaturedWidgetSlotD"
+                        ]
+                        
+                        var targetWidgetKind: String?
+                        for (key, widgetKind) in slotKeys {
+                            let storedInstanceId = userDefaults?.string(forKey: key)
+                            if storedInstanceId == instanceId {
+                                targetWidgetKind = widgetKind
+                                break
+                            }
+                        }
+                        
+                        if let widgetKind = targetWidgetKind {
+                            WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+                        }
                     }
-                    
-                    // Create static entry
-                    let entry = FeaturedWidgetEntry(
-                        date: Date(),
-                        slotIndex: slotIndex,
-                        designId: designId,
-                        frameIndex: 1,
-                        instanceId: instanceId,
-                        isAnimating: false
-                    )
-                    logger.info("📌 Widget: Creating static entry after animation reset")
-                    let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300)))
-                    logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with static entry (post-animation)")
-                    completion(timeline)
                 }
+                
+                // Create timeline with .never policy (manual reload handles timing)
+                timeline = Timeline(entries: [entry], policy: .never)
             } else {
-                // Static entry
-                let entry = FeaturedWidgetEntry(
-                    date: Date(),
-                    slotIndex: slotIndex,
-                    designId: designId,
-                    frameIndex: instanceState.currentFrame,
-                    instanceId: instanceId,
-                    isAnimating: false
-                )
-                logger.info("📌 Widget: Creating static entry for \(designId) frame \(instanceState.currentFrame)")
-                let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300))) // Refresh in 5 minutes
-                logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with static entry")
-                completion(timeline)
+                // Animation stopped - no more reloads
+                timeline = Timeline(entries: [entry], policy: .never)
             }
+            
+            completion(timeline)
         } else {
             // Create new instance
-            logger.info("⚠️ Widget: No existing instance found, creating new one")
             let newInstanceId = instanceManager.createInstance(designId: designId)
-            logger.info("✅ Widget: Created new instance: \(newInstanceId)")
             
             let entry = FeaturedWidgetEntry(
                 date: Date(),
@@ -311,9 +298,7 @@ struct FeaturedWidgetProvider: TimelineProvider {
                 instanceId: newInstanceId,
                 isAnimating: false
             )
-            logger.info("📌 Widget: Creating new instance entry for \(designId) frame 1")
-            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300))) // Refresh in 5 minutes
-            logger.info("🎬 Widget: Timeline completed for slot \(slotIndex) with new instance")
+            let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(300)))
             completion(timeline)
         }
     }
@@ -322,33 +307,24 @@ struct FeaturedWidgetProvider: TimelineProvider {
         do {
             if appStore.fileExists(SharedConstants.currentWidgetDataFile) {
                 let widgetData = try appStore.readJSON(WidgetEntry.self, from: SharedConstants.currentWidgetDataFile)
-                logger.info("Loaded current widget design from App Group: \(widgetData.id)")
                 return widgetData.id
             }
         } catch {
-            logger.error("Failed to load current widget data from App Group: \(error.localizedDescription)")
         }
         return nil
     }
     
     private func getFeaturedDesignId(for slotIndex: Int) -> String? {
         do {
-            logger.info("🔍 Widget: Loading featured config for slot \(slotIndex)")
             let featuredConfig = try appGroupManager.loadData(FeaturedConfig.self, from: appGroupManager.featuredConfigPath)
-            logger.info("✅ Widget: Loaded featured config with \(featuredConfig.designs.count) designs: \(featuredConfig.designs)")
             
             if slotIndex < featuredConfig.designs.count {
                 let designId = featuredConfig.designs[slotIndex]
-                logger.info("✅ Widget: Selected design \(designId) for slot \(slotIndex)")
                 return designId
             } else {
-                logger.warning("⚠️ Widget: Slot index \(slotIndex) exceeds featured designs count (\(featuredConfig.designs.count))")
                 return nil
             }
         } catch {
-            logger.error("❌ Widget: Could not load featured config: \(error.localizedDescription)")
-            logger.error("❌ Widget: Featured config path: \(appGroupManager.featuredConfigPath.path)")
-            logger.error("❌ Widget: File exists: \(FileManager.default.fileExists(atPath: appGroupManager.featuredConfigPath.path))")
             return nil
         }
     }
@@ -361,6 +337,20 @@ struct FeaturedWidgetProvider: TimelineProvider {
         let userDefaults = UserDefaults(suiteName: appGroupManager.appGroupId)
         
         if let existingInstanceId = userDefaults?.string(forKey: instanceKey) {
+            // Mevcut instance'ın designId'sini kontrol et ve gerekirse güncelle
+            let instanceManager = WidgetInstanceManager()
+            if var existingState = instanceManager.loadInstanceState(existingInstanceId) {
+                if existingState.designId != designId {
+                    
+                    existingState.designId = designId
+                    do {
+                        let statePath = appGroupManager.instanceStatePath(for: existingInstanceId)
+                        let data = try JSONEncoder().encode(existingState)
+                        try data.write(to: statePath)
+                    } catch {
+                    }
+                }
+            }
             return existingInstanceId
         } else {
             let newInstanceId = WidgetInstanceManager().createInstance(designId: designId)
@@ -369,57 +359,72 @@ struct FeaturedWidgetProvider: TimelineProvider {
         }
     }
     
-    private func generateAnimationTimeline(
-        startTime: Date,
-        designId: String,
-        instanceId: String,
-        slotIndex: Int
-    ) -> [FeaturedWidgetEntry] {
-        var entries: [FeaturedWidgetEntry] = []
-        let currentDate = Date()
-        let frameInterval: Double = 0.1  // Very fast animation - 0.1 seconds between frames
-        let totalFrames = 24
+    private func getFrameCount(for designId: String) -> Int {
+        // Safety check for design ID
+        guard !designId.isEmpty else {
+            return 1
+        }
         
-        // If animation start time is in the past, start from now
-        let actualStartTime = max(startTime, currentDate)
-        logger.info("🎬 Widget: Animation timeline - originalStart: \(startTime), actualStart: \(actualStartTime), current: \(currentDate), frameInterval: \(frameInterval)s")
-        
-        for i in 1...totalFrames {
-            let entryDate = actualStartTime.addingTimeInterval(Double(i - 1) * frameInterval)
-            let entry = FeaturedWidgetEntry(
-                date: entryDate,
-                slotIndex: slotIndex,
-                designId: designId,
-                frameIndex: i,
-                instanceId: instanceId,
-                isAnimating: true
-            )
-            entries.append(entry)
-            
-            // Log first few entries for debugging
-            if i <= 3 {
-                logger.info("🎬 Widget: Entry \(i) scheduled for \(entryDate) (frame \(i))")
+        var frameCount = 0
+        for i in 1...60 {
+            let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: i)
+            if FileManager.default.fileExists(atPath: framePath.path) {
+                frameCount = i
+            } else {
+                break
             }
         }
         
-        // Reset entry at the end
-        let resetDate = actualStartTime.addingTimeInterval(Double(totalFrames) * frameInterval + 1.0)
-        let resetEntry = FeaturedWidgetEntry(
-            date: resetDate,
-            slotIndex: slotIndex,
-            designId: designId,
-            frameIndex: 1,
-            instanceId: instanceId,
-            isAnimating: false
-        )
-        entries.append(resetEntry)
+        // Ensure at least 1 frame (fallback)
+        let finalFrameCount = max(frameCount, 1)
+        return finalFrameCount
+    }
+    
+    private func getNextFrameForWidget(instanceId: String, designId: String) -> Int {
+        let instanceManager = WidgetInstanceManager()
         
-        logger.info("🎬 Widget: Generated \(entries.count) timeline entries")
-        return entries
+        if let state = instanceManager.loadInstanceState(instanceId) {
+            if state.isAnimating {
+                let totalFrames = getFrameCount(for: designId)
+                
+                // If we've shown all frames, stop animation and stay on first frame
+                if state.currentFrame >= totalFrames {
+                    var updatedState = state
+                    updatedState.isAnimating = false
+                    updatedState.currentFrame = 1
+                    
+                    do {
+                        let statePath = appGroupManager.instanceStatePath(for: instanceId)
+                        let data = try JSONEncoder().encode(updatedState)
+                        try data.write(to: statePath)
+                    } catch {
+                    }
+                    
+                    return 1
+                }
+                
+                let nextFrame = state.currentFrame + 1
+                
+                var updatedState = state
+                updatedState.currentFrame = nextFrame
+                
+                do {
+                    let statePath = appGroupManager.instanceStatePath(for: instanceId)
+                    let data = try JSONEncoder().encode(updatedState)
+                    try data.write(to: statePath)
+                } catch {
+                }
+                
+                return nextFrame
+            } else {
+                return state.currentFrame
+            }
+        }
+        
+        return 1 // Default first frame
     }
 }
 
-// MARK: - Widget Entry
 struct FeaturedWidgetEntry: TimelineEntry {
     let date: Date
     let slotIndex: Int
@@ -427,31 +432,37 @@ struct FeaturedWidgetEntry: TimelineEntry {
     let frameIndex: Int
     let instanceId: String
     let isAnimating: Bool
+    
+    // Add unique identifier for each entry to help SwiftUI detect changes
+    var id: String {
+        return "\(instanceId)_\(frameIndex)_\(Int(date.timeIntervalSince1970))"
+    }
 }
 
-// MARK: - Widget View
 struct FeaturedWidgetView: View {
     let entry: FeaturedWidgetEntry
     let slotIndex: Int
     
+    // Remove internal state - use only timeline entry data
+    
+    // Initialize from entry only
+    init(entry: FeaturedWidgetEntry, slotIndex: Int) {
+        self.entry = entry
+        self.slotIndex = slotIndex
+    }
+    
     var body: some View {
         ZStack {
             if let designId = entry.designId {
-                // Full-screen design view
-                DesignFrameView(
-                    designId: designId,
-                    frameIndex: entry.frameIndex
-                )
-                .onAppear {
-                    let currentTime = Date()
-                    widgetLogger.info("🔄 Widget View: Timeline entry loaded - Design: \(designId), Frame: \(entry.frameIndex), EntryDate: \(entry.date), CurrentTime: \(currentTime), IsAnimating: \(entry.isAnimating)")
-                }
+                // Use DesignFrameView with timeline entry data directly - NO INTERNAL STATE!
+                DesignFrameView(designId: designId, frameIndex: entry.frameIndex)
+                    .id(entry.instanceId) // Stable ID per widget instance, not per frame
                 
                 // Invisible button covering entire widget
                 Button(intent: StartAnimationIntent(instanceId: entry.instanceId)) {
                     Color.clear
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(InvisibleButtonStyle())
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
             } else {
@@ -459,7 +470,7 @@ struct FeaturedWidgetView: View {
                 EmptySlotView(slotIndex: slotIndex)
             }
         }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
         .containerBackground(.clear, for: .widget)
     }
@@ -479,11 +490,6 @@ struct DesignFrameView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
                     .ignoresSafeArea(.all)
-                    .onAppear {
-                        let currentTime = Date()
-                        widgetLogger.info("✅ Widget View: Successfully displayed image for \(designId) frame \(frameIndex) at \(currentTime)")
-                        widgetLogger.info("👀 Widget View: DesignFrameView appeared for \(designId) frame \(frameIndex)")
-                    }
             } else {
                 // Try SwiftUI Image for Assets.xcassets
                 let assetName = "\(designId)_frame_\(String(format: "%02d", frameIndex))"
@@ -510,113 +516,71 @@ struct DesignFrameView: View {
                 .background(Color(.systemGray6))
                 .ignoresSafeArea(.all)
                 .onAppear {
-                    widgetLogger.error("❌ Widget View: Failed to load image, showing placeholder for \(designId) frame \(frameIndex)")
                 }
             }
         }
         .onAppear {
-            widgetLogger.info("👀 Widget View: DesignFrameView appeared for \(designId) frame \(frameIndex)")
         }
     }
     
     private func loadFrameImage() -> UIImage? {
-        widgetLogger.info("🔍 Widget: Loading frame for \(designId) index \(frameIndex)")
         
-        // Primary: Try App Group path
-        let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: frameIndex)
-        widgetLogger.info("🔍 Widget: Checking App Group path: \(framePath.path)")
+        
+        // Primary: Try Bundle Cache first (much faster for widgets)
+        let imageName = "frame_\(String(format: "%02d", frameIndex))"
+        
+        if let bundleImage = appGroupManager.loadImageFromBundleCache(named: imageName, designFolder: designId) {
+            let resizedImage = resizeImageForWidget(bundleImage)
+            
+            return resizedImage
+        }
+        
+        // Secondary: Try App Group path (frameIndex is 1-based, but frameImagePath expects 0-based)
+        let framePath = appGroupManager.frameImagePath(for: designId, frameIndex: frameIndex - 1)
+        
         
         if FileManager.default.fileExists(atPath: framePath.path) {
-            widgetLogger.info("✅ Widget: Found in App Group: \(framePath.lastPathComponent)")
+            
             if let originalImage = UIImage(contentsOfFile: framePath.path) {
-                // Resize image for widget constraints
-                let resizedImage: UIImage = resizeImageForWidget(originalImage)
-                widgetLogger.info("✅ Widget: Successfully loaded and resized image from App Group")
-                let originalSize: CGSize = originalImage.size
-                let resizedSize: CGSize = resizedImage.size
+                let resizedImage = resizeImageForWidget(originalImage)
                 
                 return resizedImage
             } else {
-                widgetLogger.error("❌ Widget: File exists but failed to load as UIImage")
+                
             }
         } else {
-            widgetLogger.warning("⚠️ Widget: Not found in App Group: \(framePath.lastPathComponent)")
-            widgetLogger.warning("⚠️ Widget: App Group path: \(framePath.path)")
             
-            // Debug: List contents of parent directory
-            let parentDir = framePath.deletingLastPathComponent()
-            if FileManager.default.fileExists(atPath: parentDir.path) {
-                do {
-                    let contents = try FileManager.default.contentsOfDirectory(atPath: parentDir.path)
-                    widgetLogger.info("📋 Widget: Contents of frames directory: \(contents)")
-                } catch {
-                    widgetLogger.error("❌ Widget: Failed to list frames directory: \(error)")
-                }
-            } else {
-                widgetLogger.warning("⚠️ Widget: Frames directory doesn't exist: \(parentDir.path)")
-            }
         }
         
         // Fallback: Try Assets.xcassets with exact naming convention
         let assetName = "\(designId)_frame_\(String(format: "%02d", frameIndex))"
-        widgetLogger.info("🎨 Widget: Trying Assets.xcassets: \(assetName)")
+        
         if let bundleImage = UIImage(named: assetName) {
-            let resizedImage: UIImage = resizeImageForWidget(bundleImage)
-            widgetLogger.info("✅ Widget: Found and resized from Assets.xcassets: \(assetName)")
+            let resizedImage = resizeImageForWidget(bundleImage)
+            
             return resizedImage
-        } else {
-            widgetLogger.warning("⚠️ Widget: Not found in Assets.xcassets: \(assetName)")
         }
         
-        // Alternative fallback: Try generic frame names 
+        // Final fallback: Try generic frame names
         let genericAssetName = "frame_\(String(format: "%02d", frameIndex))"
-        widgetLogger.info("🎨 Widget: Trying generic Assets.xcassets: \(genericAssetName)")
+        
         if let genericImage = UIImage(named: genericAssetName) {
-            let resizedImage: UIImage = resizeImageForWidget(genericImage)
-            widgetLogger.info("✅ Widget: Found and resized generic frame: \(genericAssetName)")
+            let resizedImage = resizeImageForWidget(genericImage)
+            
             return resizedImage
-        } else {
-            widgetLogger.warning("⚠️ Widget: Generic frame not found: \(genericAssetName)")
         }
         
-        widgetLogger.error("❌ Widget: No frame found for \(designId) index \(frameIndex)")
         return nil
     }
     
     private func resizeImageForWidget(_ image: UIImage) -> UIImage {
-        // Widget için güvenli maksimum boyut (square widget için)
-        let maxWidgetSize: CGFloat = 300 // 300x300 = 90,000 pixels (well under the limit)
-        
-        let originalSize = image.size
-        
-        // If image is already small enough, return as-is
-        if originalSize.width <= maxWidgetSize && originalSize.height <= maxWidgetSize {
-            return image
-        }
-        
-        // Calculate scale factor to fit within max size while maintaining aspect ratio
-        let scaleFactor = min(maxWidgetSize / originalSize.width, maxWidgetSize / originalSize.height)
-        let newSize = CGSize(width: originalSize.width * scaleFactor, height: originalSize.height * scaleFactor)
-        
-        // Use UIGraphicsImageRenderer for modern image resizing
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        let resizedImage = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
-        
-        return resizedImage
+        let targetSize = CGSize(width: 300, height: 300)
+        UIGraphicsBeginImageContextWithOptions(targetSize, false, 0.0)
+        image.draw(in: CGRect(origin: .zero, size: targetSize))
+        let resizedImage = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return resizedImage ?? image
     }
-    
-//    private func loadFromBundleTestDesigns() -> UIImage? {
-//        // Look for TestDesigns/{designId}/{designId}_frame_{frameIndex}.png
-//        guard let bundlePath = Bundle.main.path(forResource: "TestDesigns/\(designId)/\(designId)_frame_\(String(format: "%02d", frameIndex))", ofType: "png") else {
-//            widgetLogger.error("❌ Widget: TestDesigns not found for \(designId) frame \(frameIndex)")
-//            return nil
-//        }
-//        
-//        widgetLogger.info("✅ Widget: Found TestDesigns frame at \(bundlePath)")
-//        return UIImage(contentsOfFile: bundlePath)
-//    }
 }
 
 struct EmptySlotView: View {
@@ -647,6 +611,18 @@ struct EmptySlotView: View {
     }
 }
 
+// MARK: - Custom Button Style
+struct InvisibleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(1.0) // No scale on press
+            .opacity(1.0)     // No opacity change on press
+            .background(Color.clear)
+            .foregroundColor(Color.clear)
+            .animation(.none, value: configuration.isPressed) // No animation on press
+    }
+}
+
 // MARK: - App Intent
 struct StartAnimationIntent: AppIntent {
     static let title: LocalizedStringResource = "Start Animation"
@@ -664,18 +640,58 @@ struct StartAnimationIntent: AppIntent {
     }
     
     func perform() async throws -> some IntentResult {
-        widgetLogger.info("🎬 StartAnimationIntent for instance: \(instanceId)")
         
-        let instanceManager = WidgetInstanceManager()
-        let success = instanceManager.startAnimation(for: instanceId)
+        // Directly use the widget extension's instance manager
+        let widgetManager = WidgetInstanceManager()
         
-        if success {
-            WidgetCenter.shared.reloadAllTimelines()
-            widgetLogger.info("✅ Animation started for instance: \(instanceId)")
-        } else {
-            widgetLogger.error("❌ Failed to start animation for instance: \(instanceId)")
+        // Manually trigger animation by setting state and reloading timeline
+        if var state = widgetManager.loadInstanceState(instanceId) {
+            if !state.isAnimating {
+                state.isAnimating = true
+                state.currentFrame = 1
+                state.animationStartTime = Date()
+                
+                // Save updated state
+                do {
+                    let appGroupManager = AppGroupManager.shared
+                    let statePath = appGroupManager.instanceStatePath(for: instanceId)
+                    let data = try JSONEncoder().encode(state)
+                    try data.write(to: statePath)
+                    
+                    // Reload only the specific widget that was tapped
+                    if let widgetKind = getWidgetKind(for: instanceId) {
+                        WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+                    } else {
+                        WidgetCenter.shared.reloadAllTimelines() // Fallback
+                    }
+                } catch {
+                }
+            }
         }
         
         return .result()
+    }
+    
+    private func getWidgetKind(for instanceId: String) -> String? {
+        // Check UserDefaults to find which slot this instance belongs to
+        let appGroupManager = AppGroupManager.shared
+        let userDefaults = UserDefaults(suiteName: appGroupManager.appGroupId)
+        
+        let slotKeys = [
+            "widget_slot_0_instance": "FeaturedWidgetSlotA",
+            "widget_slot_1_instance": "FeaturedWidgetSlotB",
+            "widget_slot_2_instance": "FeaturedWidgetSlotC",
+            "widget_slot_3_instance": "FeaturedWidgetSlotD"
+        ]
+        
+        for (key, widgetKind) in slotKeys {
+            let storedInstanceId = userDefaults?.string(forKey: key)
+            
+            if storedInstanceId == instanceId {
+                return widgetKind
+            }
+        }
+        
+        return nil
     }
 }
